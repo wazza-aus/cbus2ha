@@ -1,0 +1,53 @@
+configuration:
+  mqtt:
+    name: "MQTT Configuration"
+    description: "MQTT configuration for the CBus to Home Assistant bridge"
+    fields:
+      mqtt_broker:
+        name: "MQTT Broker Address"
+        description: "Hostname or IP address of your MQTT broker (e.g., core-mosquitto or 192.168.1.100)"
+      mqtt_username:
+        name: "MQTT Username"
+        description: "Username for MQTT authentication (leave empty if no authentication required)"
+      mqtt_password:
+        name: "MQTT Password"
+        description: "Password for MQTT authentication (leave empty if no authentication required)"
+      mqtt_use_tls:
+        name: "Use TLS Encryption"
+        description: "Enable TLS/SSL encryption for MQTT connection"
+      mqtt_port:
+        name: "MQTT Port"
+        description: "Custom MQTT port (0 = use defaults: 1883 for non-TLS, 8883 for TLS)"
+  cbus:
+    name: "CBUS Connection Configuration"
+    description: "CBUS connection configuration for the CBus to Home Assistant bridge"
+    fields:
+      cbus_connection_type:
+        name: "C-Bus Connection Type"
+        description: "Select TCP for network connection (CNI) or Serial for USB connection (PCI)"
+      cbus_connection_string:
+        name: "C-Bus Connection Details"
+        description: "For TCP: IP:port (e.g., 192.168.1.50:10001). For Serial: device path (e.g., /dev/ttyUSB0)"
+      cbus_timesync:
+        name: "Time Sync Interval"
+        description: "Interval in seconds to sync time with C-Bus network (0 = disabled, default: 300)"
+      project_file_path:
+        name: "Project File Path"
+        description: "Optional path to C-Bus Toolkit project file (.cbz) for custom device labels"
+  ga:
+    name: "CBUS Group Address Modifiers"
+    description: "All group addresses are imported as dimmable lights by default. Change import classification or ignor importing using fields below"
+    fields:
+      non_dimmable_lights:
+        name: "Non-Dimmable Lights"
+        description: "Comma-separated group addresses for non-dimmable lights (e.g., 26,65,81)"
+      switches:
+        name: "Switches"
+        description: "Comma-separated group addresses for switch devices (e.g., 15,90)"
+      binary_sensors:
+        name: "Binary Sensors"
+        description: "Comma-separated group addresses for read-only binary sensor devices (e.g., 10,20,30)"
+      ignore:
+        name: "Ignored Devices"
+        description: "Comma-separated group addresses to exclude from MQTT discovery (e.g., 5,15,25)"
+

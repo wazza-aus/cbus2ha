@@ -1,29 +1,65 @@
-*.pyc
-*.swp
-*~
-.DS_Store
-__MACOSX
-Thumbs.db
-desktop.ini
-*.ini
-*.orig
-build
-dist
-*.egg-info
-docs/_build
-.pytype
-example.*
-EXAMPLE.*
-home.*
-HOME.*
-.git
-.gitignore
-.travis.yml
-img
-docs
-platform
-wiser-swf-de
-.idea
-venv
-debian_platform_install.sh
+# Don't include these in the Docker build
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Testing
+.pytest_cache/
 .coverage
+.tox/
+htmlcov/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Documentation (except DOCS.md which is needed for HA addon)
+docs/
+*.md
+!DOCS.md
+!README.md
+
+# Build artifacts
+*.tar.gz
+*.zip
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Original Docker files (not needed for addon build)
+entrypoint-cmqttd.sh
+Dockerfile
+!Dockerfile.addon
+
+# Experiments and tests
+experiments/
+tests/
+wiser-swf-de/

@@ -1,13 +1,39 @@
-# libcbus
+# Integrate Clipsal CBUS with Home Assistant
 
-[![Build Status](https://secure.travis-ci.org/micolous/cbus.png?branch=master)][travis]
-[![Coverage Status](https://coveralls.io/repos/github/micolous/cbus/badge.svg)][coveralls]
-[![Documentation Status](https://readthedocs.org/projects/cbus/badge/?version=latest)][rtd]
+![Supports aarch64 Architecture][aarch64-shield]
+![Supports amd64 Architecture][amd64-shield]
+![Supports armhf Architecture][armhf-shield]
+![Supports armv7 Architecture][armv7-shield]
+![Supports i386 Architecture][i386-shield]
 
-Talks to Clipsal C-Bus using Python 3.7+.
+## Credits
 
-Copyright 2012-2020 Michael Farrell. Licensed under the GNU LGPL3+. For more
-details see `COPYING` and `COPYING.LESSER`.
+This is a fork of cmqttd project by [micolous/cbus](https://github.com/micolous/cbus) with significant modifications for Home Assistant integration.
+
+### Original Work
+- **Author**: Michael Farrell (micolous)
+- **Original Repository**: https://github.com/micolous/cbus
+- **License**: GNU Lesser General Public License v3.0 or later (LGPL-3.0+)
+- **Copyright**: 2012-2020 Michael Farrell
+
+### Modifications in This Fork
+
+This fork includes extensive enhancements for Home Assistant:
+
+- **Home Assistant Addon**: Complete addon packaging with configuration UI
+- **Enhanced Device Types**: Support for switches, binary sensors, and non-dimmable lights
+- **Queue System**: Reliable command delivery with confirmation matching and retry logic
+- **Improved MQTT Discovery**: Better state management and Home Assistant 2025.3+ compatibility
+- **Color Mode Support**: Proper `color_mode` implementation for dimmable and non-dimmable lights
+- **Ramp-Down Fix**: Fixed transition time handling for lights ramping to off
+- **Enhanced Logging**: Comprehensive queue system logging for debugging
+
+### License
+
+This project is licensed under the GNU Lesser General Public License v3.0 or later (LGPL-3.0+).
+See [COPYING.LESSER](COPYING.LESSER) for details.
+
+All modifications maintain the original LGPL-3.0+ license. Original copyright notices are preserved.
 
 > **Note:** This software is not certified or endorsed by Clipsal or Schneider
 > Electric. Clipsal claim that use of C-Bus with non-Clipsal hardware or
@@ -17,7 +43,9 @@ More information about the project is available on
 [the libcbus ReadTheDocs site][rtd], and in the `docs` directory of the source
 repository.
 
-## About this project
+## About the cmqttd project: original notes from micolous.
+
+Talks to Clipsal CBus using Python 3.7+.
 
 This is a reimplementation of the PCI serial protocol _from scratch_. This is
 done using a combination [Clipsal's _Open C-Bus_ documentation][clipsal-docs]
@@ -94,15 +122,8 @@ There are many backward-incompatible changes:
 Many APIs have changed due to refactoring, and is subject to further change without notice. The
 most stable API is via MQTT (`cmqttd`).
 
-[rtd]: https://cbus.readthedocs.io/en/latest/
-[coveralls]: https://coveralls.io/github/micolous/cbus
-[travis]: https://travis-ci.org/micolous/cbus
-[5500PC]: https://www.clipsal.com/Trade/Products/ProductDetail?catno=5500PC
-[5500PCU]: https://www.clipsal.com/Trade/Products/ProductDetail?catno=5500PCU
-[5500CN]: https://updates.clipsal.com/ClipsalOnline/Files/Brochures/W0000348.pdf
-[5500CN2]: https://www.clipsal.com/Trade/Products/ProductDetail?catno=5500CN2
-[ha-auto]: https://www.home-assistant.io/docs/mqtt/discovery/
-[ha-mqtt]: https://www.home-assistant.io/integrations/light.mqtt/#json-schema
-[clipsal-docs]: https://updates.clipsal.com/ClipsalSoftwareDownload/DL/downloads/OpenCBus/OpenCBusProtocolDownloads.html
-[libcbm-src]: https://sourceforge.net/projects/cbusmodule/files/source/
-[py2]: https://www.python.org/doc/sunset-python-2/
+[aarch64-shield]: https://img.shields.io/badge/aarch64-yes-green.svg
+[amd64-shield]: https://img.shields.io/badge/amd64-yes-green.svg
+[armhf-shield]: https://img.shields.io/badge/armhf-yes-green.svg
+[armv7-shield]: https://img.shields.io/badge/armv7-yes-green.svg
+[i386-shield]: https://img.shields.io/badge/i386-yes-green.svg

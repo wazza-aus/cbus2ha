@@ -1,0 +1,95 @@
+Home Assistant Add-on Directory Structure
+==========================================
+
+Current Directory (Ready for Local Installation):
+/Users/warwick/Desktop/Cursor - Cbus2HA/cmqttd/cbus/
+
+cbus/
+├── ADDON_SETUP_SUMMARY.md          ← START HERE! Complete setup guide
+├── config.yaml                     ← Add-on configuration (required)
+├── run.sh                          ← Entry point script (required, executable)
+├── Dockerfile.addon                ← Container build file (required)
+├── build.yaml                      ← Multi-architecture config (required)
+├── DOCS.md                         ← User docs shown in HA (required)
+├── .dockerignore                   ← Build optimization
+├── README_ADDON.md                 ← Installation instructions
+├── repository.yaml.template        ← Template for HA repository
+├── ICON_README.txt                 ← Icon creation guide
+├── DIRECTORY_STRUCTURE.txt         ← This file
+│
+├── cbus/                           ← Original Python library (unchanged)
+│   ├── __init__.py
+│   ├── common.py
+│   ├── paho_asyncio.py
+│   ├── daemon/
+│   │   ├── __init__.py
+│   │   └── cmqttd.py               ← Modified: device name + ramp-down fix
+│   ├── protocol/
+│   │   ├── __init__.py
+│   │   ├── pciprotocol.py
+│   │   ├── application/
+│   │   │   ├── lighting.py
+│   │   │   └── ...
+│   │   └── ...
+│   └── toolkit/
+│       └── ...
+│
+├── Dockerfile                      ← Original Docker file (kept for reference)
+├── entrypoint-cmqttd.sh           ← Original entrypoint (kept for reference)
+├── setup.py                        ← Python package setup
+├── requirements*.txt               ← Python dependencies
+├── tests/                          ← Unit tests
+├── docs/                           ← Original documentation
+└── ...
+
+
+For GitHub Repository (Recommended Structure):
+===============================================
+
+your-github-repo/
+├── repository.yaml                 ← Customize from template
+└── cbus2ha/                        ← Rename from "cbus"
+    ├── config.yaml                 ← From above
+    ├── Dockerfile                  ← RENAME Dockerfile.addon to this!
+    ├── run.sh                      ← From above
+    ├── build.yaml                  ← From above
+    ├── DOCS.md                     ← From above
+    ├── icon.png                    ← CREATE THIS (108x108 PNG)
+    └── cbus/                       ← Entire cbus directory
+        └── ...
+
+
+Installation Paths:
+===================
+
+Local Add-on:
+  /addons/cbus2ha/                  ← Copy entire directory here
+
+Home Assistant Config:
+  /config/cbus/project.cbz          ← Optional project file location
+
+Add-on Data:
+  /data/options.json                ← Home Assistant stores config here
+
+
+Quick Start:
+============
+
+1. Read ADDON_SETUP_SUMMARY.md for complete instructions
+
+2. For local testing:
+   scp -r . root@homeassistant:/addons/cbus2ha/
+
+3. For GitHub:
+   - Create repo with structure shown above
+   - Rename Dockerfile.addon to Dockerfile
+   - Create icon.png
+   - Customize repository.yaml
+   - Push to GitHub
+   - Add repo URL to Home Assistant
+
+
+
+
+
+

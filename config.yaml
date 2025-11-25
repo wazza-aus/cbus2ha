@@ -1,0 +1,55 @@
+name: "C-Bus to Home Assistant"
+description: "Bridges Clipsal CBus system to Home Assistant via MQTT"
+version: "1.0.1"
+slug: cbus2ha
+arch:
+  - aarch64
+  - amd64
+  - armhf
+  - armv7
+  - i386
+init: false
+startup: application
+boot: auto
+host_network: true
+options:
+  # MQTT Configuration
+  mqtt:  
+    mqtt_broker: "core-mosquitto"
+    mqtt_username: ""
+    mqtt_password: ""
+    mqtt_use_tls: false
+    mqtt_port: 0
+  # CBUS Connection Configuration
+  cbus:
+    cbus_connection_type: "tcp"
+    cbus_connection_string: "192.168.1.50:10001"
+    cbus_timesync: 300
+    project_file_path: ""
+  # CBUS Group Address Modifiers
+  ga:
+    non_dimmable_lights: ""
+    switches: ""
+    binary_sensors: ""
+    ignore: ""
+schema:
+  # MQTT Configuration
+  mqtt:
+    mqtt_broker: str
+    mqtt_username: str
+    mqtt_password: password
+    mqtt_use_tls: bool?
+    mqtt_port: int(0,65535)?
+  # CBUS Connection Configuration
+  cbus:
+    cbus_connection_type: list(tcp|serial)
+    cbus_connection_string: str
+    cbus_timesync: int(0,)?
+    project_file_path: str?
+  # CBUS Group Address Modifiers
+  ga:
+    non_dimmable_lights: str?
+    switches: str?
+    binary_sensors: str?
+    ignore: str?
+
