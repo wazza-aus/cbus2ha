@@ -1,6 +1,6 @@
-name: "C-Bus to Home Assistant"
+name: "CBus to Home Assistant"
 description: "Bridges Clipsal CBus system to Home Assistant via MQTT"
-version: "1.0.1"
+version: "1.0.2"
 slug: cbus2ha
 arch:
   - aarch64

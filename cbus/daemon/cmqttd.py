@@ -671,9 +671,9 @@ class MqttClient(mqtt.Client):
             'stat_t': '~' + _TOPIC_STATE_SUFFIX,  # unused
             'device': {
                 'identifiers': ['cbus2ha'],
-                'sw_version': 'cmqttd https://github.com/micolous/cbus',
+                'sw_version': 'cbus2ha https://github.com/wazza-aus/cbus2ha',
                 'name': 'cbus2ha',
-                'manufacturer': 'micolous by wazza_aus',
+                'manufacturer': 'Clipsal CBus Home Automation',
                 'model': 'cbus2ha',
             },
         })
@@ -708,9 +708,9 @@ class MqttClient(mqtt.Client):
             'device': {
                 'identifiers': [f'cbus_light_{ga}'],
                 'connections': [['cbus_group_address', str(ga)]],
-                'sw_version': 'cmqttd https://github.com/micolous/cbus',
+                'sw_version': 'cbus2ha https://github.com/wazza-aus/cbus2ha',
                 'name': f'C-Bus Light {ga:03d}',
-                'manufacturer': 'micolous by wazza_aus',
+                'manufacturer': 'Clipsal CBus Home Automation',
                 'model': 'cbus2ha',
                 'via_device': 'cbus2ha',
             },
@@ -734,9 +734,9 @@ class MqttClient(mqtt.Client):
             'device': {
                 'identifiers': [f'cbus_switch_{ga}'],
                 'connections': [['cbus_group_address', str(ga)]],
-                'sw_version': 'cmqttd https://github.com/micolous/cbus',
+                'sw_version': 'cbus2ha https://github.com/wazza-aus/cbus2ha',
                 'name': f'C-Bus Switch {ga:03d}',
-                'manufacturer': 'micolous by wazza_aus',
+                'manufacturer': 'Clipsal CBus Home Automation',
                 'model': 'cbus2ha',
                 'via_device': 'cbus2ha',
             },
@@ -751,11 +751,11 @@ class MqttClient(mqtt.Client):
             'device': {
                 'identifiers': [f'cbus_bin_sensor_{ga}'],
                 'connections': [['cbus_group_address', str(ga)]],
-                'sw_version': 'cmqttd https://github.com/micolous/cbus',
+                'sw_version': 'cbus2ha https://github.com/wazza-aus/cbus2ha',
                 'name': f'C-Bus Light {ga:03d}',
-                'manufacturer': 'micolous by wazza_aus',
+                'manufacturer': 'Clipsal CBus Home Automation',
                 'model': 'cbus2ha',
-                'via_device': 'cmqttd',
+                'via_device': 'cbus2ha',
             },
         })
 
@@ -768,9 +768,9 @@ class MqttClient(mqtt.Client):
             'device': {
                 'identifiers': [f'cbus_binary_sensor_{ga}'],
                 'connections': [['cbus_group_address', str(ga)]],
-                'sw_version': 'cmqttd https://github.com/micolous/cbus',
+                'sw_version': 'cbus2ha https://github.com/wazza-aus/cbus2ha',
                 'name': f'C-Bus Binary Sensor {ga:03d}',
-                'manufacturer': 'micolous by wazza_aus',
+                'manufacturer': 'Clipsal CBus Home Automation',
                 'model': 'cbus2ha',
                 'via_device': 'cbus2ha',
             },

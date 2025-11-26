@@ -8,19 +8,20 @@ echo "Starting C-Bus to Home Assistant bridge..."
 CONFIG_PATH="/data/options.json"
 
 # Parse JSON config using jq (installed in base image)
-MQTT_BROKER=$(jq -r '.mqtt_broker // "core-mosquitto"' $CONFIG_PATH)
-MQTT_USERNAME=$(jq -r '.mqtt_username // ""' $CONFIG_PATH)
-MQTT_PASSWORD=$(jq -r '.mqtt_password // ""' $CONFIG_PATH)
-CBUS_CONNECTION_TYPE=$(jq -r '.cbus_connection_type // "tcp"' $CONFIG_PATH)
-CBUS_CONNECTION_STRING=$(jq -r '.cbus_connection_string // "192.168.1.50:10001"' $CONFIG_PATH)
-MQTT_USE_TLS=$(jq -r '.mqtt_use_tls // false' $CONFIG_PATH)
-MQTT_PORT=$(jq -r '.mqtt_port // 0' $CONFIG_PATH)
-CBUS_TIMESYNC=$(jq -r '.cbus_timesync // 300' $CONFIG_PATH)
-PROJECT_FILE_PATH=$(jq -r '.project_file_path // ""' $CONFIG_PATH)
-NON_DIMMABLE_LIGHTS=$(jq -r '.non_dimmable_lights // ""' $CONFIG_PATH)
-SWITCHES=$(jq -r '.switches // ""' $CONFIG_PATH)
-BINARY_SENSORS=$(jq -r '.binary_sensors // ""' $CONFIG_PATH)
-IGNORE=$(jq -r '.ignore // ""' $CONFIG_PATH)
+# Note: Config is nested (mqtt, cbus, ga) based on config.yaml schema
+MQTT_BROKER=$(jq -r '.mqtt.mqtt_broker // "core-mosquitto"' $CONFIG_PATH)
+MQTT_USERNAME=$(jq -r '.mqtt.mqtt_username // ""' $CONFIG_PATH)
+MQTT_PASSWORD=$(jq -r '.mqtt.mqtt_password // ""' $CONFIG_PATH)
+MQTT_USE_TLS=$(jq -r '.mqtt.mqtt_use_tls // false' $CONFIG_PATH)
+MQTT_PORT=$(jq -r '.mqtt.mqtt_port // 0' $CONFIG_PATH)
+CBUS_CONNECTION_TYPE=$(jq -r '.cbus.cbus_connection_type // "tcp"' $CONFIG_PATH)
+CBUS_CONNECTION_STRING=$(jq -r '.cbus.cbus_connection_string // "192.168.1.50:10001"' $CONFIG_PATH)
+CBUS_TIMESYNC=$(jq -r '.cbus.cbus_timesync // 300' $CONFIG_PATH)
+PROJECT_FILE_PATH=$(jq -r '.cbus.project_file_path // ""' $CONFIG_PATH)
+NON_DIMMABLE_LIGHTS=$(jq -r '.ga.non_dimmable_lights // ""' $CONFIG_PATH)
+SWITCHES=$(jq -r '.ga.switches // ""' $CONFIG_PATH)
+BINARY_SENSORS=$(jq -r '.ga.binary_sensors // ""' $CONFIG_PATH)
+IGNORE=$(jq -r '.ga.ignore // ""' $CONFIG_PATH)
 
 echo "MQTT Broker: ${MQTT_BROKER}"
 echo "C-Bus Connection Type: ${CBUS_CONNECTION_TYPE}"

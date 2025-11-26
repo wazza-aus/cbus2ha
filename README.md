@@ -28,6 +28,20 @@ This fork includes extensive enhancements for Home Assistant:
 - **Ramp-Down Fix**: Fixed transition time handling for lights ramping to off
 - **Enhanced Logging**: Comprehensive queue system logging for debugging
 
+## Installation
+
+[![Open your Home Assistant instance and show the add add-on repository dialog with a specific repository URL pre-filled.](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https://github.com/wazza-aus/cbus2ha)
+
+Click the button above to add this repository to your Home Assistant instance. If the button doesn't work, you can manually add the repository:
+
+1. In Home Assistant, go to **Settings** → **Add-ons** → **Add-on Store**
+2. Click the three dots (⋮) in the top right corner
+3. Select **Repositories**
+4. Add the following URL: `https://github.com/wazza-aus/cbus2ha`
+5. Click **Add**, then **Close**
+6. The "C-Bus to Home Assistant (cbus2ha)" addon should now appear in the addon store
+7. Click on it and select **Install**
+
 ### License
 
 This project is licensed under the GNU Lesser General Public License v3.0 or later (LGPL-3.0+).
