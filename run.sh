@@ -9,31 +9,88 @@ CONFIG_PATH="/data/options.json"
 
 # Parse JSON config using jq (installed in base image)
 # Note: Config is nested (mqtt, cbus, ga) based on config.yaml schema
-MQTT_BROKER=$(jq -r '.mqtt.mqtt_broker // "core-mosquitto"' $CONFIG_PATH)
+MQTT_BROKER=$(jq -r '.mqtt.mqtt_broker // ""' $CONFIG_PATH)
 MQTT_USERNAME=$(jq -r '.mqtt.mqtt_username // ""' $CONFIG_PATH)
 MQTT_PASSWORD=$(jq -r '.mqtt.mqtt_password // ""' $CONFIG_PATH)
 MQTT_USE_TLS=$(jq -r '.mqtt.mqtt_use_tls // false' $CONFIG_PATH)
 MQTT_PORT=$(jq -r '.mqtt.mqtt_port // 0' $CONFIG_PATH)
+MQTT_USE_DEFAULT=$(jq -r '.mqtt.use_mosquitto_addon // empty' $CONFIG_PATH)
 
-# Use the Mosquitto add-on account when the broker is left at the default
-# and no username was entered. A filled-in username, or any other broker
-# address, keeps the values above.
-if [ -z "${MQTT_USERNAME}" ] && [ "${MQTT_BROKER}" = "core-mosquitto" ] && [ -n "${SUPERVISOR_TOKEN:-}" ]; then
-    if MQTT_SERVICE=$(curl -fsS --max-time 5 \
+# A saved broker from before the switch existed must keep working. The
+# switch is only written once; after that, the switch is what is used.
+mqtt_settings_are_custom() {
+    if [ -n "${MQTT_USERNAME}" ]; then
+        return 0
+    fi
+    if [ -n "${MQTT_BROKER}" ] && [ "${MQTT_BROKER}" != "core-mosquitto" ]; then
+        return 0
+    fi
+    if [ "${MQTT_USE_TLS}" = "true" ]; then
+        return 0
+    fi
+    if [ -n "${MQTT_PORT}" ] && [ "${MQTT_PORT}" != "0" ] && [ "${MQTT_PORT}" != "null" ]; then
+        return 0
+    fi
+    return 1
+}
+
+save_mosquitto_switch() {
+    local value="$1"
+    local payload
+    if [ -z "${SUPERVISOR_TOKEN:-}" ]; then
+        return 1
+    fi
+    payload=$(jq --argjson value "${value}" '{options: (.mqtt.use_mosquitto_addon = $value)}' "$CONFIG_PATH")
+    curl -fsS --max-time 10 -X POST \
         -H "Authorization: Bearer ${SUPERVISOR_TOKEN}" \
-        http://supervisor/services/mqtt 2>/dev/null); then
-        SVC_HOST=$(printf '%s' "${MQTT_SERVICE}" | jq -r '.data.host // empty')
-        if [ -n "${SVC_HOST}" ]; then
-            echo "Using the Home Assistant MQTT service"
-            MQTT_BROKER="${SVC_HOST}"
-            MQTT_PORT=$(printf '%s' "${MQTT_SERVICE}" | jq -r '.data.port // 1883')
-            MQTT_USERNAME=$(printf '%s' "${MQTT_SERVICE}" | jq -r '.data.username // empty')
-            MQTT_PASSWORD=$(printf '%s' "${MQTT_SERVICE}" | jq -r '.data.password // empty')
-            MQTT_USE_TLS=$(printf '%s' "${MQTT_SERVICE}" | jq -r '.data.ssl // false')
+        -H "Content-Type: application/json" \
+        -d "${payload}" \
+        http://supervisor/addons/self/options >/dev/null
+}
+
+if [ ! -f /data/.mqtt_ui_migrated ]; then
+    if mqtt_settings_are_custom; then
+        echo "Saved MQTT broker settings found, so Use the Mosquitto add-on is off."
+        MQTT_USE_DEFAULT=false
+        if save_mosquitto_switch false; then
+            touch /data/.mqtt_ui_migrated
+        else
+            echo "Could not save that switch position. It will be tried again on the next start."
         fi
     else
-        echo "Supervisor MQTT service is not available; using the configured broker"
+        MQTT_USE_DEFAULT=true
+        touch /data/.mqtt_ui_migrated
     fi
+fi
+
+read_mosquitto_service() {
+    local info host
+    if [ -z "${SUPERVISOR_TOKEN:-}" ]; then
+        return 1
+    fi
+    info=$(curl -fsS --max-time 5 \
+        -H "Authorization: Bearer ${SUPERVISOR_TOKEN}" \
+        http://supervisor/services/mqtt) || return 1
+    host=$(printf '%s' "${info}" | jq -r '.data.host // empty')
+    if [ -z "${host}" ]; then
+        return 1
+    fi
+    echo "Using the Mosquitto add-on"
+    MQTT_BROKER="${host}"
+    MQTT_PORT=$(printf '%s' "${info}" | jq -r '.data.port // 1883')
+    MQTT_USERNAME=$(printf '%s' "${info}" | jq -r '.data.username // empty')
+    MQTT_PASSWORD=$(printf '%s' "${info}" | jq -r '.data.password // empty')
+    MQTT_USE_TLS=$(printf '%s' "${info}" | jq -r '.data.ssl // false')
+}
+
+if [ "${MQTT_USE_DEFAULT}" != "false" ]; then
+    if ! read_mosquitto_service; then
+        echo "Could not read the Mosquitto add-on account. Start the Mosquitto add-on, or turn off Use the Mosquitto add-on and enter a broker."
+        exit 1
+    fi
+elif [ -z "${MQTT_BROKER}" ]; then
+    echo "Use the Mosquitto add-on is off, and no broker address is set."
+    exit 1
 fi
 CBUS_CONNECTION_TYPE=$(jq -r '.cbus.cbus_connection_type // "tcp"' $CONFIG_PATH)
 CBUS_CONNECTION_STRING=$(jq -r '.cbus.cbus_connection_string // "192.168.1.50:10001"' $CONFIG_PATH)

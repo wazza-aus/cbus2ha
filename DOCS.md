@@ -27,15 +27,21 @@ Comma-separate the group addresses, for example `26,65,81`.
 
 ## Configuration
 
+### Use the Mosquitto add-on
+
+This switch is on for a new install. The add-on then uses the Mosquitto account Home Assistant provides, and it picks up a new password when that add-on changes it.
+
+Turn the switch off to use another broker. Home Assistant cannot show extra fields from the switch itself. Open the menu on the Configuration tab and enable **Show unused optional configuration options**. The broker, username, password, TLS, and port fields are there.
+
+If those fields already have saved values, they stay on the page. With the switch on, the saved values are not used.
+
 ### MQTT Broker
 
-Hostname or IP of the MQTT broker. Leave this as `core-mosquitto` for the Mosquitto add-on.
+Hostname or IP of your broker. Used only when **Use the Mosquitto add-on** is off.
 
 ### MQTT Username and Password
 
-Leave both empty, with the broker set to `core-mosquitto`, and the add-on uses the Mosquitto account Home Assistant provides. That account updates when the Mosquitto add-on changes it.
-
-Set the username and password when the broker is not the Mosquitto add-on, or when you want a specific account on `core-mosquitto`.
+The login for that broker. Leave both empty when the broker does not need one.
 
 ### MQTT Use TLS
 

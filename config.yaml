@@ -13,12 +13,8 @@ services:
   - mqtt:want
 options:
   # MQTT Configuration
-  mqtt:  
-    mqtt_broker: "core-mosquitto"
-    mqtt_username: ""
-    mqtt_password: ""
-    mqtt_use_tls: false
-    mqtt_port: 0
+  mqtt:
+    use_mosquitto_addon: true
   # CBUS Connection Configuration
   cbus:
     cbus_connection_type: "tcp"
@@ -34,9 +30,10 @@ options:
 schema:
   # MQTT Configuration
   mqtt:
-    mqtt_broker: str
-    mqtt_username: str
-    mqtt_password: password
+    use_mosquitto_addon: bool
+    mqtt_broker: str?
+    mqtt_username: str?
+    mqtt_password: password?
     mqtt_use_tls: bool?
     mqtt_port: int(0,65535)?
   # CBUS Connection Configuration

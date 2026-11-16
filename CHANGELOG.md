@@ -6,7 +6,8 @@
 - Lights no longer send the old `brightness` true/false flag. Dimmable lights report a brightness color mode, and on/off lights report on/off.
 - Every group address is announced under one C-Bus device. Existing entity IDs are kept. The discovery message names cbus2ha and links to the project.
 - The add-on image is Alpine 3.24. It is built for 64-bit Home Assistant only (`aarch64` and `amd64`). `armhf`, `armv7`, and `i386` are no longer available.
-- Leave the MQTT username empty, with the broker set to `core-mosquitto`, to use the Mosquitto account Home Assistant provides. A username you have already entered is still used.
+- A **Use the Mosquitto add-on** switch uses the Mosquitto account from Home Assistant. Turn it off to enter another broker. Broker fields that are still empty stay under **Show unused optional configuration options**.
+- An install that already has a broker login, another broker address, TLS, or a custom port keeps those settings. The switch is turned off once so that install does not change.
 
 ## 1.1.0
 
