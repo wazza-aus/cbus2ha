@@ -97,7 +97,9 @@ class PCIProtocol(CBusProtocol):
 
     def connection_lost(self, exc: Optional[Exception]) -> None:
         self._transport = None
-        self._connection_lost_future.set_result(True)
+        future = self._connection_lost_future
+        if future is not None and not future.done():
+            future.set_result(True)
 
     def handle_cbus_packet(self, p: BasePacket) -> None:
         """

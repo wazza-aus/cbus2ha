@@ -56,6 +56,9 @@ _DEVICE_TYPE_SWITCH = 'switch'
 _DEVICE_TYPE_BINARY_SENSOR = 'binary_sensor'
 _DEVICE_TYPE_IGNORE = 'ignore'
 
+# How long to keep trying MQTT before exiting so the supervisor can restart us.
+_MQTT_RETRY_SECONDS = 300
+
 
 def ga_range():
     return range(MIN_GROUP_ADDR, MAX_GROUP_ADDR + 1)
@@ -481,7 +484,23 @@ class CBusHandler(PCIProtocol):
 
 class MqttClient(mqtt.Client):
 
-    def on_connect(self, client, userdata: CBusHandler, flags, rc):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Client.__init__ clears callback attributes, so bind them after super().
+        self.on_connect = self._handle_connect
+        self.on_message = self._handle_message
+        self.on_disconnect = self._handle_disconnect
+        self._reconnect_task = None
+        self._disconnects = 0
+        # paho's reconnect() sleeps in-process. Keep that pause to one second
+        # and do the real backoff with asyncio.sleep so C-Bus keeps running.
+        if hasattr(self, 'reconnect_delay_set'):
+            self.reconnect_delay_set(min_delay=1, max_delay=1)
+
+    def _handle_connect(self, client, userdata: CBusHandler, flags, rc):
+        if rc != mqtt.MQTT_ERR_SUCCESS:
+            logger.warning(f'MQTT connection refused (rc={rc})')
+            return
         logger.info('Connected to MQTT broker')
         userdata.mqtt_api = self
         
@@ -509,7 +528,56 @@ class MqttClient(mqtt.Client):
         self.subscribe(topics)
         self.publish_all_lights(userdata.labels, userdata.device_types)
 
-    def on_message(self, client, userdata: CBusHandler, msg: mqtt.MQTTMessage):
+    def _handle_disconnect(self, client, userdata: CBusHandler, rc):
+        """Retry a dropped broker connection, then exit so the supervisor restarts us."""
+        if rc == mqtt.MQTT_ERR_SUCCESS:
+            logger.info('Disconnected from MQTT broker')
+            return
+        self._disconnects += 1
+        if self._reconnect_task is not None and not self._reconnect_task.done():
+            logger.warning(f'MQTT still disconnected (rc={rc})')
+            return
+        logger.warning(
+            f'Lost MQTT broker connection (rc={rc}), '
+            f'retrying for {_MQTT_RETRY_SECONDS // 60} minutes')
+        try:
+            loop = get_event_loop()
+            self._reconnect_task = loop.create_task(
+                self._reconnect_until_deadline(userdata))
+        except RuntimeError:
+            logger.error('Cannot retry MQTT connection: no event loop available')
+
+    async def _reconnect_until_deadline(self, userdata: CBusHandler):
+        deadline = time.monotonic() + _MQTT_RETRY_SECONDS
+        delay = 2
+        while time.monotonic() < deadline:
+            seen = self._disconnects
+            await sleep(delay)
+            if self.is_connected() and self._disconnects == seen:
+                return
+            try:
+                logger.info('Attempting MQTT reconnect')
+                self.reconnect()
+            except Exception as err:
+                remaining = int(deadline - time.monotonic())
+                logger.warning(
+                    f'MQTT reconnect failed: {err} — '
+                    f'{max(remaining, 0)}s left before shutdown')
+            if self.is_connected() and self._disconnects == seen:
+                logger.info('Reconnected to MQTT broker')
+                return
+            delay = min(delay * 2, 30)
+
+        if self.is_connected():
+            return
+        logger.error(
+            'MQTT broker unavailable for '
+            f'{_MQTT_RETRY_SECONDS // 60} minutes, shutting down')
+        future = getattr(userdata, '_connection_lost_future', None)
+        if future is not None and not future.done():
+            future.set_result(False)
+
+    def _handle_message(self, client, userdata: CBusHandler, msg: mqtt.MQTTMessage):
         """Handle a message from an MQTT subscription."""
         # Check if it's a set topic (any device type)
         if not msg.topic.endswith(_TOPIC_SET_SUFFIX):
@@ -1143,9 +1211,27 @@ async def _main():
         port = option.broker_port or 8883
 
     aioh = AsyncioHelper(loop, mqtt_client)
-    mqtt_client.connect(option.broker_address, port, option.broker_keepalive)
+    mqtt_deadline = time.monotonic() + _MQTT_RETRY_SECONDS
+    mqtt_delay = 2
+    while True:
+        try:
+            mqtt_client.connect(
+                option.broker_address, port, option.broker_keepalive)
+            break
+        except OSError as err:
+            if time.monotonic() >= mqtt_deadline:
+                logger.error(
+                    'Failed to connect to MQTT broker after '
+                    f'{_MQTT_RETRY_SECONDS // 60} minutes, shutting down: {err}')
+                raise SystemExit(1) from err
+            logger.warning(
+                f'MQTT connection attempt failed: {err} — '
+                f'retrying in {mqtt_delay}s')
+            await sleep(mqtt_delay)
+            mqtt_delay = min(mqtt_delay * 2, 30)
 
-    await connection_lost_future
+    if await connection_lost_future is False:
+        raise SystemExit(1)
 
 
 def main():
