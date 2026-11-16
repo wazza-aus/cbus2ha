@@ -20,6 +20,8 @@ from __future__ import absolute_import
 from dataclasses import dataclass
 from parameterized import parameterized
 import io
+import os
+import tempfile
 from typing import Optional, Text, cast
 import unittest
 
@@ -134,6 +136,49 @@ class CmqttdUtilityTest(unittest.TestCase):
         sensor = payload['cmps']['cbus_binary_sensor_4']
         self.assertEqual('binary_sensor', sensor['p'])
         self.assertNotIn('cmd_t', sensor)
+
+    def test_discovery_action_skips_when_the_move_is_finished(self):
+        self.assertEqual(
+            'skip', cmqttd.discovery_action(True, False, False))
+        self.assertEqual(
+            'skip', cmqttd.discovery_action(False, False, True))
+
+    def test_discovery_action_publishes_once_on_a_clean_broker(self):
+        self.assertEqual(
+            'publish', cmqttd.discovery_action(False, False, False))
+
+    def test_discovery_action_moves_again_when_old_topics_return(self):
+        self.assertEqual(
+            'move', cmqttd.discovery_action(True, True, True))
+
+    def test_discovery_publishes_device_then_clears_old_topics(self):
+        payload = {'cmps': {'cbus_light_1': {}}}
+        legacy = ('homeassistant/light/cbus_1/config',)
+        messages = cmqttd.discovery_publishes('move', payload, legacy)
+
+        self.assertEqual(
+            [
+                ('homeassistant/light/cbus_1/config',
+                 {'migrate_discovery': True}),
+                (cmqttd._DEVICE_DISCOVERY_TOPIC, payload),
+                ('homeassistant/light/cbus_1/config', None),
+            ],
+            list(messages))
+
+    def test_discovery_publish_does_not_write_old_topics(self):
+        payload = {'dev': {'ids': ['cbus2ha']}}
+        messages = cmqttd.discovery_publishes('publish', payload, ())
+        self.assertEqual(
+            [(cmqttd._DEVICE_DISCOVERY_TOPIC, payload)], list(messages))
+
+    def test_discovery_marker_is_a_file_written_by_the_caller(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, '.cbus2ha_discovery_migrated')
+            self.assertFalse(cmqttd.discovery_move_is_finished(path))
+            cmqttd.mark_discovery_move_finished(path)
+            self.assertTrue(cmqttd.discovery_move_is_finished(path))
+            cmqttd.clear_discovery_move_marker(path)
+            self.assertFalse(cmqttd.discovery_move_is_finished(path))
 
     @parameterized.expand([
         ('unix newlines', 'my_username\nmy_password\n'),

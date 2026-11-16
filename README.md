@@ -12,7 +12,7 @@ Group addresses are dimmable lights unless you list them as something else:
 - **Binary sensors** report state and do not accept commands.
 - **Ignored** addresses are not published to MQTT.
 
-On startup the bridge connects to C-Bus, waits until MQTT is connected, then reads the live level of each lighting group and publishes that state. Wall and app changes after that are passed through as they happen. A later MQTT reconnect does not publish discovery again or re-read every level, unless a change was missed while the broker was down. Every entity is created under one C-Bus device.
+On startup the bridge connects to C-Bus, waits until MQTT is connected, then reads the live level of each lighting group and publishes that state. Wall and app changes after that are passed through as they happen. A later MQTT reconnect does not publish discovery again or re-read every level, unless a change was missed while the broker was down. Every entity is created under one C-Bus device. Older per-entity discovery is deleted as part of that move, and the move is remembered only after the delete. If those old messages are still in the broker, the next start removes them again.
 
 Leave the MQTT broker, username, and password blank to use the Mosquitto add-on. A broker you have already saved continues to be used.
 

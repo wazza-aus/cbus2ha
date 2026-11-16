@@ -22,8 +22,9 @@ from collections import deque
 from dataclasses import dataclass, field
 import json
 import logging
+import os
 import time
-from typing import Any, BinaryIO, Dict, Optional, Text, TextIO
+from typing import Any, BinaryIO, Dict, Optional, Sequence, Text, TextIO, Tuple
 
 import paho.mqtt.client as mqtt
 
@@ -50,6 +51,16 @@ _TOPIC_STATE_SUFFIX = '/state'
 _META_TOPIC = 'homeassistant/binary_sensor/cbus_cmqttd'
 _DEVICE_DISCOVERY_TOPIC = 'homeassistant/device/cbus2ha/config'
 _SUPPORT_URL = 'https://github.com/wazza-aus/cbus2ha'
+# Written only after the old per-entity discovery messages have been deleted.
+_DISCOVERY_MARKER = '/data/.cbus2ha_discovery_migrated'
+# Retained single-entity configs arrive just after subscribe. Wait for them
+# before deciding whether the old messages are still in the broker.
+_LEGACY_DISCOVERY_SETTLE_SECONDS = 2
+_LEGACY_DISCOVERY_FILTERS = (
+    'homeassistant/light/+/config',
+    'homeassistant/switch/+/config',
+    'homeassistant/binary_sensor/+/config',
+)
 
 # Device type constants
 _DEVICE_TYPE_LIGHT = 'light'
@@ -164,6 +175,82 @@ def legacy_discovery_topics():
         topics.append(_SWITCH_TOPIC_PREFIX + str(ga) + _TOPIC_CONF_SUFFIX)
         topics.append(bin_sensor_conf_topic(ga))
     return topics
+
+
+def legacy_discovery_topic_set():
+    """The old discovery topics, cached for message handling."""
+    topics = getattr(legacy_discovery_topic_set, '_cached', None)
+    if topics is None:
+        topics = frozenset(legacy_discovery_topics())
+        legacy_discovery_topic_set._cached = topics
+    return topics
+
+
+def discovery_marker_path() -> str:
+    return _DISCOVERY_MARKER
+
+
+def discovery_move_is_finished(path: Optional[str] = None) -> bool:
+    """True after a previous start deleted the old discovery messages."""
+    return os.path.isfile(path or discovery_marker_path())
+
+
+def clear_discovery_move_marker(path: Optional[str] = None) -> None:
+    """Forget a finished move so a crash mid-move is tried again."""
+    try:
+        os.remove(path or discovery_marker_path())
+    except FileNotFoundError:
+        pass
+    except OSError as err:
+        logger.warning(f'Could not forget the discovery move: {err}')
+
+
+def mark_discovery_move_finished(path: Optional[str] = None) -> None:
+    """Remember the move. Call this only after the old topics are cleared."""
+    path = path or discovery_marker_path()
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, 'w', encoding='utf-8') as handle:
+            handle.write('ok\n')
+    except OSError as err:
+        logger.warning(f'Could not remember that discovery was moved: {err}')
+
+
+def discovery_action(marker_exists: bool, legacy_topics_present: bool,
+                     already_published: bool) -> str:
+    """What to do with discovery on this connect.
+
+    ``move`` publishes the one device message and deletes the old topics.
+    ``publish`` publishes the device message when nothing older is saved.
+    ``skip`` leaves discovery where it is.
+    """
+    if legacy_topics_present:
+        return 'move'
+    if marker_exists or already_published:
+        return 'skip'
+    return 'publish'
+
+
+def discovery_publishes(action: str, payload: Dict[str, Any],
+                        legacy_topics: Sequence[str]
+                        ) -> Sequence[Tuple[str, Optional[Dict[str, Any]]]]:
+    """Publish list for one discovery pass.
+
+    An empty body (``None``) clears a retained topic. The device message is
+    published before those clears, and only after ``migrate_discovery``, which
+    is the order Home Assistant needs to keep the existing entities.
+    """
+    if action == 'skip':
+        return []
+    messages = []
+    if action == 'move':
+        for topic in legacy_topics:
+            messages.append((topic, {'migrate_discovery': True}))
+    messages.append((_DEVICE_DISCOVERY_TOPIC, payload))
+    if action == 'move':
+        for topic in legacy_topics:
+            messages.append((topic, None))
+    return messages
 
 
 def _entity_name(ga: int, device_type: str, labels: Dict[int, Text]) -> str:
@@ -647,8 +734,10 @@ class MqttClient(mqtt.Client):
         self.on_disconnect = self._handle_disconnect
         self._reconnect_task = None
         self._disconnects = 0
-        self._discovery_migrated = False
         self._discovery_published = False
+        self._legacy_discovery_seen = set()
+        self._discovery_check_task = None
+        self._discovery_check_generation = 0
         # paho's reconnect() sleeps in-process. Keep that pause to one second
         # and do the real backoff with asyncio.sleep so C-Bus keeps running.
         if hasattr(self, 'reconnect_delay_set'):
@@ -682,7 +771,35 @@ class MqttClient(mqtt.Client):
             # Also subscribe to switch topics (Home Assistant might send commands to these)
             topics.append((_SWITCH_TOPIC_PREFIX + str(ga) + _TOPIC_SET_SUFFIX, 2))
         
+        # Look for old per-entity discovery before publishing. A retained
+        # message on one of those topics means an older version left a second
+        # copy of an id that is already on the C-Bus device.
+        self._legacy_discovery_seen.clear()
+        self.subscribe([(topic, 1) for topic in _LEGACY_DISCOVERY_FILTERS])
         self.subscribe(topics)
+        self._schedule_discovery(userdata)
+
+    def _schedule_discovery(self, userdata: CBusHandler):
+        try:
+            loop = get_event_loop()
+        except RuntimeError:
+            logger.error('Cannot publish discovery: no event loop available')
+            return
+        self._discovery_check_generation += 1
+        generation = self._discovery_check_generation
+        if (self._discovery_check_task is not None
+                and not self._discovery_check_task.done()):
+            self._discovery_check_task.cancel()
+        self._discovery_check_task = loop.create_task(
+            self._publish_discovery_when_settled(userdata, generation))
+
+    async def _publish_discovery_when_settled(self, userdata: CBusHandler,
+                                              generation: int):
+        await sleep(_LEGACY_DISCOVERY_SETTLE_SECONDS)
+        if generation != self._discovery_check_generation:
+            return
+        if not self.is_connected():
+            return
         self.publish_all_lights(userdata.labels, userdata.device_types)
 
     def _handle_disconnect(self, client, userdata: CBusHandler, rc):
@@ -737,6 +854,13 @@ class MqttClient(mqtt.Client):
 
     def _handle_message(self, client, userdata: CBusHandler, msg: mqtt.MQTTMessage):
         """Handle a message from an MQTT subscription."""
+        if msg.topic in legacy_discovery_topic_set():
+            if msg.payload:
+                self._legacy_discovery_seen.add(msg.topic)
+            else:
+                self._legacy_discovery_seen.discard(msg.topic)
+            return
+
         # Check if it's a set topic (any device type)
         if not msg.topic.endswith(_TOPIC_SET_SUFFIX):
             return
@@ -892,9 +1016,17 @@ class MqttClient(mqtt.Client):
 
         Home Assistant reloads the entities when discovery is published again.
         A lock then looks unlocked, and locked again once its state returns.
-        Publish once per process; subscriptions are refreshed on each connect.
+        The move off the old per-entity topics is remembered only after those
+        topics are deleted. A later connect does nothing unless those old
+        messages are in the broker again.
         """
-        if self._discovery_published:
+        legacy = tuple(self._legacy_discovery_seen)
+        action = discovery_action(
+            discovery_move_is_finished(), bool(legacy),
+            self._discovery_published)
+        if action == 'skip':
+            self._discovery_published = True
+            logger.info('Discovery is already in place')
             return
         version = addon_version()
         payload = discovery_payload(labels, device_types, version)
@@ -902,16 +1034,18 @@ class MqttClient(mqtt.Client):
         if count == 0:
             logger.warning('No C-Bus group addresses to publish')
             return
-        if not self._discovery_migrated:
+        if action == 'move':
+            # Drop the marker first. A crash before the delete must try again.
+            clear_discovery_move_marker()
             logger.info('Moving existing entities onto the C-Bus device')
-            for topic in legacy_discovery_topics():
-                self.publish(topic, {'migrate_discovery': True})
         logger.info(f'Publishing C-Bus device discovery for {count} entities')
-        self.publish(_DEVICE_DISCOVERY_TOPIC, payload)
-        if not self._discovery_migrated:
-            for topic in legacy_discovery_topics():
+        for topic, body in discovery_publishes(action, payload, legacy):
+            if body is None:
                 super().publish(topic, '', 1, True)
-            self._discovery_migrated = True
+            else:
+                self.publish(topic, body)
+        mark_discovery_move_finished()
+        self._legacy_discovery_seen.clear()
         self._discovery_published = True
 
     def _publish_switch_state(self, group_addr: int, state: str):
