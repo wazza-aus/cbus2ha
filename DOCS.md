@@ -14,7 +14,7 @@ If the broker connection drops after startup, the add-on retries for five minute
 
 ## Device types
 
-Every group address from 0 to 255 is a **dimmable light** unless you list it in one of the fields below.
+Every group address from 0 to 255 is a **dimmable light** unless you list it in one of the fields below. Home Assistant creates all of them under a single C-Bus device.
 
 | Field | Result in Home Assistant |
 | --- | --- |
@@ -29,11 +29,13 @@ Comma-separate the group addresses, for example `26,65,81`.
 
 ### MQTT Broker
 
-Hostname or IP of the MQTT broker. For the Mosquitto add-on, use `core-mosquitto`.
+Hostname or IP of the MQTT broker. Leave this as `core-mosquitto` for the Mosquitto add-on.
 
 ### MQTT Username and Password
 
-Leave both empty if the broker does not require authentication.
+Leave both empty, with the broker set to `core-mosquitto`, and the add-on uses the Mosquitto account Home Assistant provides. That account updates when the Mosquitto add-on changes it.
+
+Set the username and password when the broker is not the Mosquitto add-on, or when you want a specific account on `core-mosquitto`.
 
 ### MQTT Use TLS
 

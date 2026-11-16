@@ -8,7 +8,7 @@ configuration:
         description: "Hostname or IP address of your MQTT broker (e.g., core-mosquitto or 192.168.1.100)"
       mqtt_username:
         name: "MQTT Username"
-        description: "Username for MQTT authentication (leave empty if no authentication required)"
+        description: "Leave empty, with the broker set to core-mosquitto, to use the Mosquitto add-on automatically. Set a username for any other broker."
       mqtt_password:
         name: "MQTT Password"
         description: "Password for MQTT authentication (leave empty if no authentication required)"
@@ -36,7 +36,7 @@ configuration:
         description: "Optional path to C-Bus Toolkit project file (.cbz) for custom device labels"
   ga:
     name: "CBUS Group Address Modifiers"
-    description: "All group addresses are imported as dimmable lights by default. Change import classification or ignor importing using fields below"
+    description: "All group addresses are imported as dimmable lights by default. Change the type, or skip an address, using the fields below"
     fields:
       non_dimmable_lights:
         name: "Non-Dimmable Lights"

@@ -2,9 +2,6 @@
 
 ![Supports aarch64 Architecture][aarch64-shield]
 ![Supports amd64 Architecture][amd64-shield]
-![Supports armhf Architecture][armhf-shield]
-![Supports armv7 Architecture][armv7-shield]
-![Supports i386 Architecture][i386-shield]
 
 This add-on bridges a Clipsal C-Bus PCI or CNI to Home Assistant over MQTT. It is a fork of [cmqttd](https://github.com/micolous/cbus) by Michael Farrell, packaged for Home Assistant.
 
@@ -15,7 +12,11 @@ Group addresses are dimmable lights unless you list them as something else:
 - **Binary sensors** report state and do not accept commands.
 - **Ignored** addresses are not published to MQTT.
 
-On startup the bridge connects to C-Bus, waits until MQTT is connected, then reads the live level of each lighting group and publishes that state. Wall and app changes after that are passed through as they happen.
+On startup the bridge connects to C-Bus, waits until MQTT is connected, then reads the live level of each lighting group and publishes that state. Wall and app changes after that are passed through as they happen. Every entity is created under one C-Bus device.
+
+Leave the MQTT username empty, with the broker set to `core-mosquitto`, to use the Mosquitto add-on account that Home Assistant provides. Set a username, or a different broker address, for any other broker.
+
+The image is built for 64-bit Home Assistant only (`aarch64` and `amd64`). Home Assistant no longer publishes base images for `armhf`, `armv7`, or `i386`.
 
 If the MQTT broker disappears, the add-on retries for five minutes. If the broker is still down, the add-on exits so the Supervisor can start it again.
 
@@ -54,6 +55,3 @@ This fork adds the Home Assistant add-on, device types, command queue, MQTT disc
 
 [aarch64-shield]: https://img.shields.io/badge/aarch64-yes-green.svg
 [amd64-shield]: https://img.shields.io/badge/amd64-yes-green.svg
-[armhf-shield]: https://img.shields.io/badge/armhf-yes-green.svg
-[armv7-shield]: https://img.shields.io/badge/armv7-yes-green.svg
-[i386-shield]: https://img.shields.io/badge/i386-yes-green.svg

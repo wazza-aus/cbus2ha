@@ -14,6 +14,27 @@ MQTT_USERNAME=$(jq -r '.mqtt.mqtt_username // ""' $CONFIG_PATH)
 MQTT_PASSWORD=$(jq -r '.mqtt.mqtt_password // ""' $CONFIG_PATH)
 MQTT_USE_TLS=$(jq -r '.mqtt.mqtt_use_tls // false' $CONFIG_PATH)
 MQTT_PORT=$(jq -r '.mqtt.mqtt_port // 0' $CONFIG_PATH)
+
+# Use the Mosquitto add-on account when the broker is left at the default
+# and no username was entered. A filled-in username, or any other broker
+# address, keeps the values above.
+if [ -z "${MQTT_USERNAME}" ] && [ "${MQTT_BROKER}" = "core-mosquitto" ] && [ -n "${SUPERVISOR_TOKEN:-}" ]; then
+    if MQTT_SERVICE=$(curl -fsS --max-time 5 \
+        -H "Authorization: Bearer ${SUPERVISOR_TOKEN}" \
+        http://supervisor/services/mqtt 2>/dev/null); then
+        SVC_HOST=$(printf '%s' "${MQTT_SERVICE}" | jq -r '.data.host // empty')
+        if [ -n "${SVC_HOST}" ]; then
+            echo "Using the Home Assistant MQTT service"
+            MQTT_BROKER="${SVC_HOST}"
+            MQTT_PORT=$(printf '%s' "${MQTT_SERVICE}" | jq -r '.data.port // 1883')
+            MQTT_USERNAME=$(printf '%s' "${MQTT_SERVICE}" | jq -r '.data.username // empty')
+            MQTT_PASSWORD=$(printf '%s' "${MQTT_SERVICE}" | jq -r '.data.password // empty')
+            MQTT_USE_TLS=$(printf '%s' "${MQTT_SERVICE}" | jq -r '.data.ssl // false')
+        fi
+    else
+        echo "Supervisor MQTT service is not available; using the configured broker"
+    fi
+fi
 CBUS_CONNECTION_TYPE=$(jq -r '.cbus.cbus_connection_type // "tcp"' $CONFIG_PATH)
 CBUS_CONNECTION_STRING=$(jq -r '.cbus.cbus_connection_string // "192.168.1.50:10001"' $CONFIG_PATH)
 CBUS_TIMESYNC=$(jq -r '.cbus.cbus_timesync // 300' $CONFIG_PATH)

@@ -48,6 +48,8 @@ _TOPIC_SET_SUFFIX = '/set'
 _TOPIC_CONF_SUFFIX = '/config'
 _TOPIC_STATE_SUFFIX = '/state'
 _META_TOPIC = 'homeassistant/binary_sensor/cbus_cmqttd'
+_DEVICE_DISCOVERY_TOPIC = 'homeassistant/device/cbus2ha/config'
+_SUPPORT_URL = 'https://github.com/wazza-aus/cbus2ha'
 
 # Device type constants
 _DEVICE_TYPE_LIGHT = 'light'
@@ -139,6 +141,94 @@ def state_topic_for_device(group_addr: int, device_type: str) -> Text:
         return bin_sensor_state_topic(group_addr)
     else:  # light or light_non_dimmable (both use light topic)
         return state_topic(group_addr)
+
+
+def addon_version() -> str:
+    """Read the add-on version from config.yaml when it is available."""
+    for path in ('config.yaml', '/app/config.yaml'):
+        try:
+            with open(path, encoding='utf-8') as handle:
+                for line in handle:
+                    if line.startswith('version:'):
+                        return line.split(':', 1)[1].strip().strip('"').strip("'")
+        except OSError:
+            continue
+    return 'cbus2ha'
+
+
+def legacy_discovery_topics():
+    """Single-entity discovery topics published by older versions."""
+    topics = [_META_TOPIC + _TOPIC_CONF_SUFFIX]
+    for ga in ga_range():
+        topics.append(conf_topic(ga))
+        topics.append(_SWITCH_TOPIC_PREFIX + str(ga) + _TOPIC_CONF_SUFFIX)
+        topics.append(bin_sensor_conf_topic(ga))
+    return topics
+
+
+def _entity_name(ga: int, device_type: str, labels: Dict[int, Text]) -> str:
+    return labels.get(
+        ga, f'C-Bus {device_type.replace("_", " ").title()} {ga:03d}')
+
+
+def discovery_component(ga: int, device_type: str, name: str) -> Dict[str, Any]:
+    """One Home Assistant entity inside the shared C-Bus device."""
+    if device_type == _DEVICE_TYPE_SWITCH:
+        return {
+            'p': 'switch',
+            'name': name,
+            'unique_id': f'cbus_switch_{ga}',
+            'cmd_t': _SWITCH_TOPIC_PREFIX + str(ga) + _TOPIC_SET_SUFFIX,
+            'stat_t': state_topic_for_device(ga, device_type),
+            'schema': 'json',
+        }
+    if device_type == _DEVICE_TYPE_BINARY_SENSOR:
+        return {
+            'p': 'binary_sensor',
+            'name': name,
+            'unique_id': f'cbus_binary_sensor_{ga}',
+            'stat_t': bin_sensor_state_topic(ga),
+        }
+    dimmable = device_type != _DEVICE_TYPE_LIGHT_NON_DIMMABLE
+    return {
+        'p': 'light',
+        'name': name,
+        'unique_id': f'cbus_light_{ga}',
+        'cmd_t': set_topic(ga),
+        'stat_t': state_topic(ga),
+        'schema': 'json',
+        'supported_color_modes': ['brightness' if dimmable else 'onoff'],
+    }
+
+
+def discovery_payload(labels: Dict[int, Text],
+                      device_types: Dict[int, str],
+                      version: str) -> Dict[str, Any]:
+    """Device discovery for every group address under one C-Bus device."""
+    components = {}
+    for ga in ga_range():
+        device_type = get_device_type(ga, device_types)
+        if device_type == _DEVICE_TYPE_IGNORE:
+            continue
+        name = _entity_name(ga, device_type, labels)
+        component = discovery_component(ga, device_type, name)
+        components[component['unique_id']] = component
+    return {
+        'dev': {
+            'ids': ['cbus2ha'],
+            'name': 'C-Bus',
+            'mf': 'Clipsal',
+            'mdl': 'cbus2ha',
+            'sw': version,
+        },
+        'o': {
+            'name': 'cbus2ha',
+            'sw': version,
+            'url': _SUPPORT_URL,
+        },
+        'cmps': components,
+        'qos': 1,
+    }
 
 
 @dataclass
@@ -539,6 +629,7 @@ class MqttClient(mqtt.Client):
         self.on_disconnect = self._handle_disconnect
         self._reconnect_task = None
         self._disconnects = 0
+        self._discovery_migrated = False
         # paho's reconnect() sleeps in-process. Keep that pause to one second
         # and do the real backoff with asyncio.sleep so C-Bus keeps running.
         if hasattr(self, 'reconnect_delay_set'):
@@ -651,8 +742,8 @@ class MqttClient(mqtt.Client):
             logger.info(f"Received command for read-only binary sensor GA {ga}, ignoring")
             return
 
-        # https://www.home-assistant.io/integrations/light.mqtt/#json-schema
-        # Home Assistant sends JSON for lights, but plain strings ("ON"/"OFF") for switches
+        # Lights and switches are announced with the JSON schema, so Home
+        # Assistant sends {"state":"ON"}. Plain ON/OFF is still accepted.
         try:
             payload = json.loads(msg.payload)
         except (json.JSONDecodeError, ValueError):
@@ -776,121 +867,31 @@ class MqttClient(mqtt.Client):
         payload = json.dumps(payload)
         return super().publish(topic, payload, 1, True)
 
-    def publish_all_lights(self, labels: Dict[int, Text], 
+    def publish_all_lights(self, labels: Dict[int, Text],
                           device_types: Dict[int, str]):
-        """Publishes configuration for all devices based on their types."""
-        # Meta-device which holds all the C-Bus group addresses
-        self.publish(_META_TOPIC + _TOPIC_CONF_SUFFIX, {
-            '~': _META_TOPIC,
-            'name': 'cbus2ha',
-            'unique_id': 'cbus2ha',
-            'stat_t': '~' + _TOPIC_STATE_SUFFIX,  # unused
-            'device': {
-                'identifiers': ['cbus2ha'],
-                'sw_version': 'cbus2ha https://github.com/wazza-aus/cbus2ha',
-                'name': 'cbus2ha',
-                'manufacturer': 'Clipsal CBus Home Automation',
-                'model': 'cbus2ha',
-            },
-        })
+        """Publish every group address as one C-Bus device."""
+        version = addon_version()
+        payload = discovery_payload(labels, device_types, version)
+        count = len(payload['cmps'])
+        if count == 0:
+            logger.warning('No C-Bus group addresses to publish')
+            return
+        if not self._discovery_migrated:
+            logger.info('Moving existing entities onto the C-Bus device')
+            for topic in legacy_discovery_topics():
+                self.publish(topic, {'migrate_discovery': True})
+        logger.info(f'Publishing C-Bus device discovery for {count} entities')
+        self.publish(_DEVICE_DISCOVERY_TOPIC, payload)
+        if not self._discovery_migrated:
+            for topic in legacy_discovery_topics():
+                super().publish(topic, '', 1, True)
+            self._discovery_migrated = True
 
-        for ga in ga_range():
-            device_type = get_device_type(ga, device_types)
-            
-            # Skip ignored devices completely
-            if device_type == _DEVICE_TYPE_IGNORE:
-                continue
-            
-            name = labels.get(ga, f'C-Bus {device_type.replace("_", " ").title()} {ga:03d}')
-            
-            if device_type == _DEVICE_TYPE_LIGHT:
-                self._publish_light_config(ga, name, dimmable=True)
-            elif device_type == _DEVICE_TYPE_LIGHT_NON_DIMMABLE:
-                self._publish_light_config(ga, name, dimmable=False)
-            elif device_type == _DEVICE_TYPE_SWITCH:
-                self._publish_switch_config(ga, name)
-            elif device_type == _DEVICE_TYPE_BINARY_SENSOR:
-                self._publish_binary_sensor_config(ga, name)
-
-    def _publish_light_config(self, ga: int, name: str, dimmable: bool = True):
-        """Publish light entity configuration."""
-        config = {
-            'name': name,
-            'unique_id': f'cbus_light_{ga}',
-            'cmd_t': set_topic(ga),
-            'stat_t': state_topic(ga),
-            'schema': 'json',
-            'brightness': dimmable,  # Key difference!
-            'device': {
-                'identifiers': [f'cbus_light_{ga}'],
-                'connections': [['cbus_group_address', str(ga)]],
-                'sw_version': 'cbus2ha https://github.com/wazza-aus/cbus2ha',
-                'name': f'C-Bus Light {ga:03d}',
-                'manufacturer': 'Clipsal CBus Home Automation',
-                'model': 'cbus2ha',
-                'via_device': 'cbus2ha',
-            },
-        }
-        # Add supported_color_modes based on dimmable capability
-        if dimmable:
-            config['supported_color_modes'] = ['brightness']
-        else:
-            config['supported_color_modes'] = ['onoff']
-        self.publish(conf_topic(ga), config)
-
-    def _publish_switch_config(self, ga: int, name: str):
-        """Publish switch entity configuration."""
-        topic = _SWITCH_TOPIC_PREFIX + str(ga) + _TOPIC_CONF_SUFFIX
-        self.publish(topic, {
-            'name': name,
-            'unique_id': f'cbus_switch_{ga}',
-            'cmd_t': _SWITCH_TOPIC_PREFIX + str(ga) + _TOPIC_SET_SUFFIX,
-            'stat_t': _SWITCH_TOPIC_PREFIX + str(ga) + _TOPIC_STATE_SUFFIX,
-            'schema': 'json',
-            'device': {
-                'identifiers': [f'cbus_switch_{ga}'],
-                'connections': [['cbus_group_address', str(ga)]],
-                'sw_version': 'cbus2ha https://github.com/wazza-aus/cbus2ha',
-                'name': f'C-Bus Switch {ga:03d}',
-                'manufacturer': 'Clipsal CBus Home Automation',
-                'model': 'cbus2ha',
-                'via_device': 'cbus2ha',
-            },
-        })
-
-    def _publish_binary_sensor_state_tracker(self, ga: int, name: str):
-        """Publish binary sensor for state tracking (existing behavior)."""
-        self.publish(bin_sensor_conf_topic(ga), {
-            'name': f'{name} (as binary sensor)',
-            'unique_id': f'cbus_bin_sensor_{ga}',
-            'stat_t': bin_sensor_state_topic(ga),
-            'device': {
-                'identifiers': [f'cbus_bin_sensor_{ga}'],
-                'connections': [['cbus_group_address', str(ga)]],
-                'sw_version': 'cbus2ha https://github.com/wazza-aus/cbus2ha',
-                'name': f'C-Bus Light {ga:03d}',
-                'manufacturer': 'Clipsal CBus Home Automation',
-                'model': 'cbus2ha',
-                'via_device': 'cbus2ha',
-            },
-        })
-
-    def _publish_binary_sensor_config(self, ga: int, name: str):
-        """Publish binary sensor entity configuration (read-only)."""
-        self.publish(bin_sensor_conf_topic(ga), {
-            'name': name,
-            'unique_id': f'cbus_binary_sensor_{ga}',
-            'stat_t': bin_sensor_state_topic(ga),
-            'device': {
-                'identifiers': [f'cbus_binary_sensor_{ga}'],
-                'connections': [['cbus_group_address', str(ga)]],
-                'sw_version': 'cbus2ha https://github.com/wazza-aus/cbus2ha',
-                'name': f'C-Bus Binary Sensor {ga:03d}',
-                'manufacturer': 'Clipsal CBus Home Automation',
-                'model': 'cbus2ha',
-                'via_device': 'cbus2ha',
-            },
-        })
+    def _publish_switch_state(self, group_addr: int, state: str):
+        """Switches are announced with the JSON schema, so state is JSON."""
+        self.publish(
+            state_topic_for_device(group_addr, _DEVICE_TYPE_SWITCH),
+            {'state': state})
 
     def publish_binary_sensor(self, group_addr: int, state: bool):
         payload = 'ON' if state else 'OFF'
@@ -910,10 +911,8 @@ class MqttClient(mqtt.Client):
         
         state_topic_str = state_topic_for_device(group_addr, device_type)
         
-        # Switches need plain string state updates, lights need JSON
         if device_type == _DEVICE_TYPE_SWITCH:
-            # Publish plain string for switches
-            super().publish(state_topic_str, 'ON', 1, True)
+            self._publish_switch_state(group_addr, 'ON')
         else:
             # Publish JSON for lights
             payload = {
@@ -942,10 +941,8 @@ class MqttClient(mqtt.Client):
         
         state_topic_str = state_topic_for_device(group_addr, device_type)
         
-        # Switches need plain string state updates, lights need JSON
         if device_type == _DEVICE_TYPE_SWITCH:
-            # Publish plain string for switches
-            super().publish(state_topic_str, 'OFF', 1, True)
+            self._publish_switch_state(group_addr, 'OFF')
         else:
             # Publish JSON for lights
             payload = {
@@ -975,10 +972,8 @@ class MqttClient(mqtt.Client):
         state_topic_str = state_topic_for_device(group_addr, device_type)
         state = 'OFF' if level == 0 else 'ON'
         
-        # Switches need plain string state updates, lights need JSON
         if device_type == _DEVICE_TYPE_SWITCH:
-            # Publish plain string for switches
-            super().publish(state_topic_str, state, 1, True)
+            self._publish_switch_state(group_addr, state)
         else:
             # Publish JSON for lights
             payload = {

@@ -101,6 +101,40 @@ class CmqttdUtilityTest(unittest.TestCase):
     def test_invalid_topic_group_address(self, topic):
         self.assertRaises(ValueError, cmqttd.get_topic_group_address, topic)
 
+    def test_discovery_groups_entities_under_one_device(self):
+        labels = {1: 'Kitchen'}
+        device_types = {
+            1: cmqttd._DEVICE_TYPE_LIGHT,
+            2: cmqttd._DEVICE_TYPE_LIGHT_NON_DIMMABLE,
+            3: cmqttd._DEVICE_TYPE_SWITCH,
+            4: cmqttd._DEVICE_TYPE_BINARY_SENSOR,
+            5: cmqttd._DEVICE_TYPE_IGNORE,
+        }
+        payload = cmqttd.discovery_payload(labels, device_types, '1.1.1')
+
+        self.assertEqual(['cbus2ha'], payload['dev']['ids'])
+        self.assertEqual('cbus2ha', payload['o']['name'])
+        self.assertEqual('1.1.1', payload['o']['sw'])
+        self.assertNotIn('cbus_light_5', payload['cmps'])
+
+        light = payload['cmps']['cbus_light_1']
+        self.assertEqual('light', light['p'])
+        self.assertEqual('Kitchen', light['name'])
+        self.assertEqual(['brightness'], light['supported_color_modes'])
+        self.assertNotIn('brightness', light)
+
+        onoff = payload['cmps']['cbus_light_2']
+        self.assertEqual(['onoff'], onoff['supported_color_modes'])
+        self.assertNotIn('brightness', onoff)
+
+        switch = payload['cmps']['cbus_switch_3']
+        self.assertEqual('switch', switch['p'])
+        self.assertEqual('json', switch['schema'])
+
+        sensor = payload['cmps']['cbus_binary_sensor_4']
+        self.assertEqual('binary_sensor', sensor['p'])
+        self.assertNotIn('cmd_t', sensor)
+
     @parameterized.expand([
         ('unix newlines', 'my_username\nmy_password\n'),
         ('dos newlines', 'my_username\r\nmy_password\r\n'),

@@ -1,8 +1,8 @@
 # Home Assistant Add-on Dockerfile for cbus2ha
 # This bridges C-Bus PCI/CNI to Home Assistant via MQTT
 
-ARG BUILD_FROM
-FROM $BUILD_FROM
+ARG BUILD_FROM=ghcr.io/home-assistant/base:3.24
+FROM ${BUILD_FROM}
 
 # Set shell
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
