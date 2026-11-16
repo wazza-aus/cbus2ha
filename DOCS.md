@@ -27,21 +27,13 @@ Comma-separate the group addresses, for example `26,65,81`.
 
 ## Configuration
 
-### MQTT Broker, username, and password
+### MQTT
 
-Leave the broker, username, and password blank to use the Mosquitto add-on. The add-on then uses the account Home Assistant provides, including when that password changes.
+Leave the broker address, username, and password blank to use the Mosquitto add-on. Leave **Use TLS Encryption** off and **MQTT Port** at `0`. The add-on then uses the Mosquitto account Home Assistant provides, and it picks up a new password when that add-on changes it.
 
-Fill in the broker address for any other broker. Add a username and password when that broker requires them.
+For a different broker, enter its hostname or IP address. Add a username and password only when that broker requires them. Turn on TLS to encrypt that connection. Set the port when it is not 1883, or 8883 with TLS on. With TLS on and no custom certificates, Python's default CA store is used.
 
 An install that already has a broker address, username, password, TLS, or a custom port keeps those values and continues to use them.
-
-### MQTT Use TLS
-
-Encrypt the MQTT connection. Default: off. With TLS on and no custom certificates, Python's default CA store is used.
-
-### MQTT Port
-
-`0` uses 1883, or 8883 when TLS is on.
 
 ### C-Bus Connection Type
 
@@ -122,7 +114,8 @@ Check the log. A C-Bus interface that is still booting, or an MQTT broker that s
 ### Nothing appears in Home Assistant
 
 - The MQTT integration must be connected to the same broker.
-- The username and password must match that broker.
+- With the MQTT fields left blank, the Mosquitto add-on must be running. Home Assistant’s MQTT integration should use that same add-on.
+- With a broker address filled in, the username and password must match that broker.
 - Addresses listed under **Ignored devices** are not discovered.
 
 ### A light or switch did not follow a command
