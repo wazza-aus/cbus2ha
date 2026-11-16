@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.2
+
+- Blank MQTT settings now read the Mosquitto add-on account from the Supervisor reply. The previous version looked in the wrong place and stopped before connecting.
+
 ## 1.1.1
 
 - Switches now publish `{"state":"ON"}` and `{"state":"OFF"}`, matching the JSON discovery Home Assistant was already using. Switch state updates in Home Assistant after a command.

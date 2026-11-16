@@ -2,6 +2,15 @@
 # Home Assistant Add-on entry point for cbus2ha
 set -e
 
+# s6 starts this script without the container environment. Load it once so
+# SUPERVISOR_TOKEN and TZ are visible.
+if [ -z "${SUPERVISOR_TOKEN:-}${HASSIO_TOKEN:-}" ] \
+    && [ -z "${CBUS2HA_ENV_LOADED:-}" ] \
+    && [ -x /command/with-contenv ]; then
+    export CBUS2HA_ENV_LOADED=1
+    exec /command/with-contenv bash "$0" "$@"
+fi
+
 echo "Starting C-Bus to Home Assistant bridge..."
 
 # Read configuration from Home Assistant
@@ -33,24 +42,53 @@ mqtt_settings_are_blank() {
     return 0
 }
 
+supervisor_token() {
+    local token="${SUPERVISOR_TOKEN:-${HASSIO_TOKEN:-}}"
+    if [ -z "${token}" ] && [ -r /run/s6/container_environment/SUPERVISOR_TOKEN ]; then
+        token=$(cat /run/s6/container_environment/SUPERVISOR_TOKEN)
+    fi
+    if [ -z "${token}" ] && [ -r /run/s6/container_environment/HASSIO_TOKEN ]; then
+        token=$(cat /run/s6/container_environment/HASSIO_TOKEN)
+    fi
+    printf '%s' "${token}"
+}
+
 read_mosquitto_service() {
-    local info host
-    if [ -z "${SUPERVISOR_TOKEN:-}" ]; then
+    local info host result message token
+    token=$(supervisor_token)
+    if [ -z "${token}" ]; then
+        echo "Supervisor did not provide an API token."
         return 1
     fi
-    info=$(curl -fsS --max-time 5 \
-        -H "Authorization: Bearer ${SUPERVISOR_TOKEN}" \
-        http://supervisor/services/mqtt) || return 1
-    host=$(printf '%s' "${info}" | jq -r '.data.host // empty')
+    # The reply is either {"result":"ok","data":{...}} or the fields themselves.
+    if ! info=$(curl -fsS --max-time 5 \
+        -H "Authorization: Bearer ${token}" \
+        http://supervisor/services/mqtt); then
+        echo "Could not reach the Supervisor at http://supervisor/services/mqtt."
+        if ! info=$(curl -fsS --max-time 5 \
+            -H "Authorization: Bearer ${token}" \
+            http://172.30.32.2/services/mqtt); then
+            echo "Could not reach the Supervisor at 172.30.32.2 either."
+            return 1
+        fi
+    fi
+    result=$(printf '%s' "${info}" | jq -r '.result // "ok"')
+    if [ "${result}" = "error" ]; then
+        message=$(printf '%s' "${info}" | jq -r '.message // "unknown error"')
+        echo "Supervisor MQTT service error: ${message}"
+        return 1
+    fi
+    host=$(printf '%s' "${info}" | jq -r '.data.host // .host // empty')
     if [ -z "${host}" ]; then
+        echo "Supervisor MQTT service did not include a broker address."
         return 1
     fi
     echo "Using the Mosquitto add-on"
     MQTT_BROKER="${host}"
-    MQTT_PORT=$(printf '%s' "${info}" | jq -r '.data.port // 1883')
-    MQTT_USERNAME=$(printf '%s' "${info}" | jq -r '.data.username // empty')
-    MQTT_PASSWORD=$(printf '%s' "${info}" | jq -r '.data.password // empty')
-    MQTT_USE_TLS=$(printf '%s' "${info}" | jq -r '.data.ssl // false')
+    MQTT_PORT=$(printf '%s' "${info}" | jq -r '.data.port // .port // 1883')
+    MQTT_USERNAME=$(printf '%s' "${info}" | jq -r '.data.username // .username // empty')
+    MQTT_PASSWORD=$(printf '%s' "${info}" | jq -r '.data.password // .password // empty')
+    MQTT_USE_TLS=$(printf '%s' "${info}" | jq -r '.data.ssl // .ssl // false')
 }
 
 if mqtt_settings_are_blank; then
