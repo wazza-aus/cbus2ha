@@ -274,12 +274,24 @@ class CBusHandler(PCIProtocol):
         self._mqtt_epoch = 0
         self._level_sync_requested = 0
         self._level_sync_done = -1
+        # Set when a real C-Bus change arrives while MQTT is down. A reconnect
+        # re-reads levels only then, so a broker blip does not republish every
+        # group and make HomeKit announce the door.
+        self._missed_while_down = False
 
+
+    def _remember_if_unpublished(self, device_type: str) -> bool:
+        """Return True when there is no MQTT connection to publish on."""
+        if self.mqtt_api:
+            return False
+        if device_type != _DEVICE_TYPE_IGNORE:
+            self._missed_while_down = True
+        return True
 
     def on_lighting_group_ramp(self, source_addr, group_addr, duration, level):
-        if not self.mqtt_api:
-            return
         device_type = get_device_type(group_addr, self.device_types)
+        if self._remember_if_unpublished(device_type):
+            return
         
         # Log but don't publish for ignored devices
         if device_type == _DEVICE_TYPE_IGNORE:
@@ -290,9 +302,9 @@ class CBusHandler(PCIProtocol):
             source_addr, group_addr, duration, level, device_type)
 
     def on_lighting_group_on(self, source_addr, group_addr):
-        if not self.mqtt_api:
-            return
         device_type = get_device_type(group_addr, self.device_types)
+        if self._remember_if_unpublished(device_type):
+            return
         
         # Log but don't publish for ignored devices
         if device_type == _DEVICE_TYPE_IGNORE:
@@ -302,9 +314,9 @@ class CBusHandler(PCIProtocol):
         self.mqtt_api.lighting_group_on(source_addr, group_addr, device_type)
 
     def on_lighting_group_off(self, source_addr, group_addr):
-        if not self.mqtt_api:
-            return
         device_type = get_device_type(group_addr, self.device_types)
+        if self._remember_if_unpublished(device_type):
+            return
         
         # Log but don't publish for ignored devices
         if device_type == _DEVICE_TYPE_IGNORE:
@@ -314,10 +326,16 @@ class CBusHandler(PCIProtocol):
         self.mqtt_api.lighting_group_off(source_addr, group_addr, device_type)
 
     def mqtt_connected(self, mqtt_api) -> None:
-        """Called when the broker connection is up. Schedules a level sync."""
+        """Called when the broker connection is up.
+
+        The first connection reads every level. A later connection reads them
+        again only if a C-Bus change could not be published while MQTT was down.
+        """
         self.mqtt_api = mqtt_api
         self._mqtt_epoch += 1
-        self._level_sync_requested += 1
+        if self._level_sync_done < 0 or self._missed_while_down:
+            self._level_sync_requested += 1
+            self._missed_while_down = False
 
     def mqtt_disconnected(self) -> None:
         """Drop the publisher so bus events during an outage are not discarded into a dead socket."""
@@ -630,6 +648,7 @@ class MqttClient(mqtt.Client):
         self._reconnect_task = None
         self._disconnects = 0
         self._discovery_migrated = False
+        self._discovery_published = False
         # paho's reconnect() sleeps in-process. Keep that pause to one second
         # and do the real backoff with asyncio.sleep so C-Bus keeps running.
         if hasattr(self, 'reconnect_delay_set'):
@@ -869,7 +888,14 @@ class MqttClient(mqtt.Client):
 
     def publish_all_lights(self, labels: Dict[int, Text],
                           device_types: Dict[int, str]):
-        """Publish every group address as one C-Bus device."""
+        """Publish every group address as one C-Bus device.
+
+        Home Assistant reloads the entities when discovery is published again.
+        A lock then looks unlocked, and locked again once its state returns.
+        Publish once per process; subscriptions are refreshed on each connect.
+        """
+        if self._discovery_published:
+            return
         version = addon_version()
         payload = discovery_payload(labels, device_types, version)
         count = len(payload['cmps'])
@@ -886,6 +912,7 @@ class MqttClient(mqtt.Client):
             for topic in legacy_discovery_topics():
                 super().publish(topic, '', 1, True)
             self._discovery_migrated = True
+        self._discovery_published = True
 
     def _publish_switch_state(self, group_addr: int, state: str):
         """Switches are announced with the JSON schema, so state is JSON."""

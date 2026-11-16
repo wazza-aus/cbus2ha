@@ -10,7 +10,7 @@ This add-on bridges a Clipsal C-Bus lighting system to Home Assistant via MQTT.
 4. Publishes MQTT discovery so Home Assistant creates the entities below.
 5. Forwards later C-Bus changes to Home Assistant, and Home Assistant commands back to C-Bus.
 
-If the broker connection drops after startup, the add-on retries for five minutes. If the broker does not return, the add-on exits and the Supervisor starts it again. The new start reads levels from C-Bus once MQTT is connected.
+If the broker connection drops after startup, the add-on retries for five minutes. It does not publish discovery again, and it does not re-read every level, unless a C-Bus change happened while the broker was down. Publishing discovery on every reconnect was reloading entities and making HomeKit announce a door as unlocked, then locked. If the broker does not return, the add-on exits and the Supervisor starts it again. The new start reads levels from C-Bus once MQTT is connected.
 
 ## Device types
 

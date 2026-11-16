@@ -3,6 +3,7 @@
 ## 1.2.0
 
 - Blank MQTT settings now read the Mosquitto add-on account from the Supervisor reply. Version 1.1.1 looked in the wrong place and stopped before connecting.
+- A later MQTT reconnect does not publish discovery again or re-read every C-Bus level. Doing that on each reconnect was reloading the door in Home Assistant, so HomeKit announced it unlocked and then locked. Levels are read again only if a C-Bus change was missed while MQTT was down.
 
 ## 1.1.1
 
