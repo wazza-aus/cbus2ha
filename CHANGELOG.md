@@ -7,6 +7,7 @@
 - Every group address is announced under one C-Bus device. Existing entity IDs are kept. The discovery message names cbus2ha and links to the project.
 - The add-on image is Alpine 3.24. It is built for 64-bit Home Assistant only (`aarch64` and `amd64`). `armhf`, `armv7`, and `i386` are no longer available.
 - Leave the MQTT broker, username, and password blank to use the Mosquitto add-on. An install that already has a broker address, login, TLS, or a custom port keeps those settings.
+- The Alpine 3.24 image installs setuptools, which that Python no longer includes, so the add-on can build.
 
 ## 1.1.0
 

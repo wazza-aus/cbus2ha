@@ -11,6 +11,7 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN apk add --no-cache \
     python3 \
     py3-pip \
+    py3-setuptools \
     py3-cffi \
     py3-paho-mqtt \
     py3-six \
