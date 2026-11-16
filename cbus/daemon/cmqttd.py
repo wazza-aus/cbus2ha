@@ -179,6 +179,11 @@ class CBusHandler(PCIProtocol):
         self.timeout_watchdog_task = None
         self.queue_lock = None  # Will be initialized as asyncio.Lock when loop is available
         self._queue_running = False
+        # Bumped on each MQTT connect. Level sync records the value it published
+        # for, and runs again when a newer connection is up.
+        self._mqtt_epoch = 0
+        self._level_sync_requested = 0
+        self._level_sync_done = -1
 
 
     def on_lighting_group_ramp(self, source_addr, group_addr, duration, level):
@@ -217,6 +222,48 @@ class CBusHandler(PCIProtocol):
             return
         
         self.mqtt_api.lighting_group_off(source_addr, group_addr, device_type)
+
+    def mqtt_connected(self, mqtt_api) -> None:
+        """Called when the broker connection is up. Schedules a level sync."""
+        self.mqtt_api = mqtt_api
+        self._mqtt_epoch += 1
+        self._level_sync_requested += 1
+
+    def mqtt_disconnected(self) -> None:
+        """Drop the publisher so bus events during an outage are not discarded into a dead socket."""
+        self.mqtt_api = None
+
+    async def _initial_level_sync(self) -> None:
+        """Publish live C-Bus levels once MQTT is actually connected.
+
+        The C-Bus socket usually comes up before Mosquitto, especially while
+        the broker add-on is updating. Asking for levels in that gap drops the
+        replies, because there is nowhere to publish them.
+        """
+        await sleep(3.0)
+        waiting_logged = False
+        while self._transport is not None:
+            requested = self._level_sync_requested
+            if self.mqtt_api is None or requested == self._level_sync_done:
+                if self.mqtt_api is None and not waiting_logged:
+                    logger.info('Waiting for MQTT before syncing C-Bus levels')
+                    waiting_logged = True
+                await sleep(0.5)
+                continue
+            waiting_logged = False
+            epoch = self._mqtt_epoch
+            try:
+                await self.request_level_status_paced()
+            except Exception as err:
+                logger.error(f'Level sync failed: {err}', exc_info=err)
+                await sleep(2.0)
+                continue
+            # Reports arrive shortly after the queries. If MQTT drops in that
+            # window the publishes are lost, so keep the request pending.
+            await sleep(2.0)
+            if self.mqtt_api is not None and self._mqtt_epoch == epoch:
+                self._level_sync_done = requested
+                logger.info('C-Bus level sync published to MQTT')
 
     # TODO: on_lighting_group_terminate_ramp
 
@@ -502,7 +549,7 @@ class MqttClient(mqtt.Client):
             logger.warning(f'MQTT connection refused (rc={rc})')
             return
         logger.info('Connected to MQTT broker')
-        userdata.mqtt_api = self
+        userdata.mqtt_connected(self)
         
         # Start queue system
         userdata.start_queue_system()
@@ -530,6 +577,7 @@ class MqttClient(mqtt.Client):
 
     def _handle_disconnect(self, client, userdata: CBusHandler, rc):
         """Retry a dropped broker connection, then exit so the supervisor restarts us."""
+        userdata.mqtt_disconnected()
         if rc == mqtt.MQTT_ERR_SUCCESS:
             logger.info('Disconnected from MQTT broker')
             return

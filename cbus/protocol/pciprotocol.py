@@ -378,6 +378,21 @@ class PCIProtocol(CBusProtocol):
                 group_address=block_start,
             )))
 
+    async def request_level_status_paced(self) -> None:
+        """Like request_level_status(), with a short gap between blocks.
+
+        Eight back-to-back queries can fill the PCI buffer and drop a block,
+        which leaves those group addresses unsynced.
+        """
+        logger.info('Requesting current lighting levels from C-Bus network')
+        for block_start in range(0, 256, 32):
+            self._send(PointToMultipointPacket(sals=StatusRequestSAL(
+                child_application=Application.LIGHTING,
+                level_request=True,
+                group_address=block_start,
+            )))
+            await sleep(0.1)
+
     async def _initial_level_sync(self) -> None:
         """
         Waits for the PCI reset sequence to settle, then polls all group
@@ -386,7 +401,7 @@ class PCIProtocol(CBusProtocol):
         """
         await sleep(3.0)
         try:
-            self.request_level_status()
+            await self.request_level_status_paced()
         except Exception as e:
             logger.error(f'Initial level sync failed: {e}', exc_info=e)
 
