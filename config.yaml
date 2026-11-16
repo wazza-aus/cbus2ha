@@ -14,8 +14,7 @@ services:
 options:
   # MQTT Configuration
   mqtt:
-    use_mosquitto_addon: true
-    mqtt_broker: "core-mosquitto"
+    mqtt_broker: ""
     mqtt_username: ""
     mqtt_password: ""
     mqtt_use_tls: false
@@ -35,7 +34,6 @@ options:
 schema:
   # MQTT Configuration
   mqtt:
-    use_mosquitto_addon: bool
     mqtt_broker: str
     mqtt_username: str
     mqtt_password: password

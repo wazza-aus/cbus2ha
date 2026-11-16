@@ -1,26 +1,23 @@
 configuration:
   mqtt:
     name: "MQTT Configuration"
-    description: "The switch is at the top of this section. While it is on, the broker fields below stay on the page and are not used."
+    description: "Leave these blank to use the Mosquitto add-on. Fill them in only for a different broker. A broker you have already saved is kept."
     fields:
-      use_mosquitto_addon:
-        name: "Use the Mosquitto add-on"
-        description: "On uses the Mosquitto account from Home Assistant. The fields below are kept, and used only when this is off."
       mqtt_broker:
         name: "MQTT Broker Address"
-        description: "Hostname or IP address of your MQTT broker. Not used while Use the Mosquitto add-on is on."
+        description: "Leave blank to use the Mosquitto add-on. Otherwise, the hostname or IP of your broker."
       mqtt_username:
         name: "MQTT Username"
-        description: "Username for that broker. Leave empty if it does not need a login."
+        description: "Leave blank when using the Mosquitto add-on, or when your broker does not need a login."
       mqtt_password:
         name: "MQTT Password"
-        description: "Password for that broker. Leave empty if it does not need a login."
+        description: "Leave blank when using the Mosquitto add-on, or when your broker does not need a login."
       mqtt_use_tls:
         name: "Use TLS Encryption"
-        description: "Encrypt the connection to your broker."
+        description: "Leave off when using the Mosquitto add-on. Turn on to encrypt the connection to your own broker."
       mqtt_port:
         name: "MQTT Port"
-        description: "Port for your broker. 0 uses 1883, or 8883 when TLS is on."
+        description: "Leave at 0 when using the Mosquitto add-on. Otherwise 1883, or 8883 when TLS is on."
   cbus:
     name: "CBUS Connection Configuration"
     description: "CBUS connection configuration for the CBus to Home Assistant bridge"
