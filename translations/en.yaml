@@ -1,14 +1,14 @@
 configuration:
   mqtt:
     name: "MQTT Configuration"
-    description: "Use the Mosquitto add-on, or turn that switch off and enter another broker. Broker fields stay hidden until they have a value, or until Show unused optional configuration options is on."
+    description: "The switch is at the top of this section. While it is on, the broker fields below stay on the page and are not used."
     fields:
       use_mosquitto_addon:
         name: "Use the Mosquitto add-on"
-        description: "On uses the Mosquitto account from Home Assistant. Turn it off to use the broker, username, password, TLS, and port fields."
+        description: "On uses the Mosquitto account from Home Assistant. The fields below are kept, and used only when this is off."
       mqtt_broker:
         name: "MQTT Broker Address"
-        description: "Hostname or IP address of your MQTT broker. Used only when Use the Mosquitto add-on is off."
+        description: "Hostname or IP address of your MQTT broker. Not used while Use the Mosquitto add-on is on."
       mqtt_username:
         name: "MQTT Username"
         description: "Username for that broker. Leave empty if it does not need a login."

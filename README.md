@@ -14,7 +14,7 @@ Group addresses are dimmable lights unless you list them as something else:
 
 On startup the bridge connects to C-Bus, waits until MQTT is connected, then reads the live level of each lighting group and publishes that state. Wall and app changes after that are passed through as they happen. Every entity is created under one C-Bus device.
 
-**Use the Mosquitto add-on** is on unless you turn it off. A broker saved before that switch was added is kept, and the switch is turned off for that install. Turn the switch off and show the unused optional options to enter a different broker.
+**Use the Mosquitto add-on** sits at the top of the MQTT section and is on unless you turn it off. The broker fields stay visible underneath it and are used only when the switch is off. A broker saved before that switch was added is kept, and the switch is turned off for that install.
 
 The image is built for 64-bit Home Assistant only (`aarch64` and `amd64`). Home Assistant no longer publishes base images for `armhf`, `armv7`, or `i386`.
 
