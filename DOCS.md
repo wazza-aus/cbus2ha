@@ -1,154 +1,138 @@
 # CBus to Home Assistant
 
-This Home Assistant add-on bridges a Clipsal CBus lighting system to Home Assistant via MQTT, enabling control and monitoring of CBus devices through the Home Assistant interface.
+This add-on bridges a Clipsal C-Bus lighting system to Home Assistant via MQTT.
 
-## Features
+## What it does
 
-- **MQTT Bridge**: Connects C-Bus PCI/CNI to Home Assistant via MQTT
-- **Lighting Control**: Full support for C-Bus lighting including on/off, dimming, and ramp (fade) functions
-- **TCP or Serial**: Support for both network (CNI) and serial (PCI) connections
-- **Auto-Discovery**: Automatic device discovery in Home Assistant via MQTT
-- **Time Sync**: Optionally synchronize time with the C-Bus network
-- **Customizable Labels**: Support for C-Bus Toolkit project files for friendly device names
+1. Connects to your C-Bus PCI or CNI.
+2. Connects to your MQTT broker, retrying for up to five minutes if the broker is still starting.
+3. Reads the current level of each lighting group from C-Bus and publishes that state.
+4. Publishes MQTT discovery so Home Assistant creates the entities below.
+5. Forwards later C-Bus changes to Home Assistant, and Home Assistant commands back to C-Bus.
+
+If the broker connection drops after startup, the add-on retries for five minutes. If the broker does not return, the add-on exits and the Supervisor starts it again. The new start reads levels from C-Bus once MQTT is connected.
+
+## Device types
+
+Every group address from 0 to 255 is a **dimmable light** unless you list it in one of the fields below.
+
+| Field | Result in Home Assistant |
+| --- | --- |
+| Non-dimmable lights | On/off light. Brightness and fade commands are ignored. |
+| Switches | Switch. On or off only. |
+| Binary sensors | Read-only sensor. Commands are ignored. |
+| Ignored devices | Not discovered and not subscribed. |
+
+Comma-separate the group addresses, for example `26,65,81`.
 
 ## Configuration
 
-### Required Settings
+### MQTT Broker
 
-#### MQTT Broker
-The hostname or IP address of your MQTT broker. If using the Mosquitto add-on, use `core-mosquitto`.
+Hostname or IP of the MQTT broker. For the Mosquitto add-on, use `core-mosquitto`.
 
-**Example**: `core-mosquitto` or `192.168.1.100`
+### MQTT Username and Password
 
-#### MQTT Username
-Username for MQTT authentication. Leave blank if your broker doesn't require authentication.
+Leave both empty if the broker does not require authentication.
 
-#### MQTT Password
-Password for MQTT authentication. Leave blank if your broker doesn't require authentication.
+### MQTT Use TLS
 
-#### C-Bus Connection Type
-Select how your C-Bus system is connected:
-- **tcp**: For C-Bus CNI (network connection)
-- **serial**: For C-Bus PCI (USB/serial connection)
+Encrypt the MQTT connection. Default: off. With TLS on and no custom certificates, Python's default CA store is used.
 
-#### C-Bus Connection String
-Connection details for your C-Bus interface:
-- **For TCP**: IP address and port (e.g., `192.168.1.50:10001`)
-- **For Serial**: Device path (e.g., `/dev/ttyUSB0`)
+### MQTT Port
 
-### Optional Settings
+`0` uses 1883, or 8883 when TLS is on.
 
-#### MQTT Use TLS
-Enable TLS/SSL encryption for MQTT connection. Default: `false`
+### C-Bus Connection Type
 
-**Note**: When enabled without custom certificates, Python's default CA store is used.
+- **tcp** for a CNI or a networked PCI
+- **serial** for a USB or serial PCI
 
-#### MQTT Port
-Custom MQTT port. Set to `0` to use defaults:
-- `1883` for non-TLS connections
-- `8883` for TLS connections
+### C-Bus Connection String
 
-#### C-Bus Time Sync
-Interval (in seconds) to send time synchronization packets to the C-Bus network. Set to `0` to disable. Default: `300` (5 minutes)
+- TCP: `192.168.1.50:10001`
+- Serial: `/dev/ttyUSB0`
 
-#### Project File Path
-Path to a C-Bus Toolkit project backup file (.cbz or .xml) for custom group address labels. If not specified, generic names like "C-Bus Light 001" will be used.
+### C-Bus Time Sync
 
-**Example**: `/config/cbus/project.cbz`
+How often, in seconds, to send the clock to the C-Bus network. `0` disables it. Default: `300`.
 
-## Installation
+### Project File Path
 
-1. Add this repository to your Home Assistant add-on store
-2. Install the "C-Bus to Home Assistant (cbus2ha)" add-on
-3. Configure the add-on with your MQTT and C-Bus settings
-4. Start the add-on
-5. Check the logs to ensure successful connection
+Optional path to a C-Bus Toolkit backup (`.cbz` or `.xml`) used for entity names. Without it, names look like `C-Bus Light 001`.
 
-## Usage
+Example: `/config/cbus/project.cbz`
 
-Once configured and running, the add-on will:
+## Controlling lights
 
-1. Connect to your MQTT broker
-2. Connect to your C-Bus PCI/CNI
-3. Publish device discovery messages to Home Assistant
-4. Create light entities for all 256 possible C-Bus group addresses (0-255)
+These examples use group address 1, discovered as `light.cbus_light_001`.
 
-All C-Bus lights will appear in Home Assistant as:
-- **Light entities**: For full control (on/off/brightness/transitions)
-- **Binary sensor entities**: For simple on/off status
+**Turn on**
 
-### Controlling Lights
-
-**Turn On**:
 ```yaml
-service: light.turn_on
+action: light.turn_on
 target:
   entity_id: light.cbus_light_001
 ```
 
-**Dim to 50%**:
+**Dim to 50%**
+
 ```yaml
-service: light.turn_on
+action: light.turn_on
+target:
+  entity_id: light.cbus_light_001
 data:
   brightness: 127
-target:
-  entity_id: light.cbus_light_001
 ```
 
-**Fade to Full Over 10 Seconds**:
+**Fade to full over 10 seconds**
+
 ```yaml
-service: light.turn_on
+action: light.turn_on
+target:
+  entity_id: light.cbus_light_001
 data:
   brightness: 255
   transition: 10
-target:
-  entity_id: light.cbus_light_001
 ```
 
-**Fade Off Over 5 Seconds**:
+**Fade off over 5 seconds**
+
 ```yaml
-service: light.turn_off
-data:
-  transition: 5
+action: light.turn_off
 target:
   entity_id: light.cbus_light_001
+data:
+  transition: 5
 ```
+
+Non-dimmable lights and switches ignore brightness and transition.
 
 ## Troubleshooting
 
-### Add-on won't start
-- Check the logs for error messages
-- Verify MQTT broker is running and accessible
-- Verify C-Bus connection details are correct
+### The add-on does not stay running
 
-### Can't connect to C-Bus
-- **TCP**: Ensure the CNI IP address and port are correct (usually port 10001)
-- **Serial**: Ensure the device path is correct and the add-on has permission to access it
+Check the log. A C-Bus interface that is still booting, or an MQTT broker that stays down for more than five minutes, causes the add-on to exit. The Supervisor starts it again. Confirm the broker is up and the C-Bus address is reachable, then start the add-on once more.
 
-### No devices appear in Home Assistant
-- Check that MQTT integration is configured in Home Assistant
-- Verify MQTT credentials are correct
-- Check add-on logs for connection errors
+### Cannot connect to C-Bus
 
-### Lights don't respond
-- C-Bus network may be busy - commands may need to be rate-limited
-- Check C-Bus physical network connections
-- Verify group addresses exist on your C-Bus network
+- **TCP:** the CNI address and port are usually port `10001`. The CNI must already have an IP address.
+- **Serial:** the device path must exist, and the add-on must be allowed to use it.
 
-## Technical Details
+### Nothing appears in Home Assistant
 
-- Based on libcbus (https://github.com/micolous/cbus)
-- Uses MQTT JSON schema for Home Assistant integration
-- Supports all 256 C-Bus lighting group addresses (0-255)
-- Implements C-Bus lighting application protocol
-- Time synchronization keeps C-Bus network clock accurate
+- The MQTT integration must be connected to the same broker.
+- The username and password must match that broker.
+- Addresses listed under **Ignored devices** are not discovered.
+
+### A light or switch did not follow a command
+
+Commands are queued and retried after the PCI confirms them. If the log shows the confirmation timing out, the C-Bus network or the cabling to the PCI is the place to look.
+
+## Updates
+
+Home Assistant installs this add-on from the `master` branch. An update appears when the `version` in that branch's `config.yaml` is newer than the version you have installed. There is no version list to pick from.
 
 ## License
 
-This add-on uses libcbus, which is licensed under the GNU Lesser General Public License v3.0 or later.
-
-
-
-
-
-
+The add-on uses libcbus, licensed under the GNU Lesser General Public License v3.0 or later.

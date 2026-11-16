@@ -1,4 +1,4 @@
-# Integrate Clipsal CBUS with Home Assistant
+# Integrate Clipsal C-Bus with Home Assistant
 
 ![Supports aarch64 Architecture][aarch64-shield]
 ![Supports amd64 Architecture][amd64-shield]
@@ -6,135 +6,51 @@
 ![Supports armv7 Architecture][armv7-shield]
 ![Supports i386 Architecture][i386-shield]
 
-## Credits
+This add-on bridges a Clipsal C-Bus PCI or CNI to Home Assistant over MQTT. It is a fork of [cmqttd](https://github.com/micolous/cbus) by Michael Farrell, packaged for Home Assistant.
 
-This is a fork of cmqttd project by [micolous/cbus](https://github.com/micolous/cbus) with significant modifications for Home Assistant integration.
+Group addresses are dimmable lights unless you list them as something else:
 
-### Original Work
-- **Author**: Michael Farrell (micolous)
-- **Original Repository**: https://github.com/micolous/cbus
-- **License**: GNU Lesser General Public License v3.0 or later (LGPL-3.0+)
-- **Copyright**: 2012-2020 Michael Farrell
+- **Non-dimmable lights** are on/off only.
+- **Switches** are on/off controls.
+- **Binary sensors** report state and do not accept commands.
+- **Ignored** addresses are not published to MQTT.
 
-### Modifications in This Fork
+On startup the bridge connects to C-Bus, waits until MQTT is connected, then reads the live level of each lighting group and publishes that state. Wall and app changes after that are passed through as they happen.
 
-This fork includes extensive enhancements for Home Assistant:
+If the MQTT broker disappears, the add-on retries for five minutes. If the broker is still down, the add-on exits so the Supervisor can start it again.
 
-- **Home Assistant Addon**: Complete addon packaging with configuration UI
-- **Enhanced Device Types**: Support for switches, binary sensors, and non-dimmable lights
-- **Queue System**: Reliable command delivery with confirmation matching and retry logic
-- **Improved MQTT Discovery**: Better state management and Home Assistant 2025.3+ compatibility
-- **Color Mode Support**: Proper `color_mode` implementation for dimmable and non-dimmable lights
-- **Ramp-Down Fix**: Fixed transition time handling for lights ramping to off
-- **Enhanced Logging**: Comprehensive queue system logging for debugging
+## Versions
+
+Home Assistant installs this add-on from the `master` branch. The version it offers is the `version` field in [`config.yaml`](config.yaml) on that branch. There is no version picker.
+
+`beta` is a development branch. Home Assistant will not offer it as an update.
 
 ## Installation
 
 [![Open your Home Assistant instance and show the add add-on repository dialog with a specific repository URL pre-filled.](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https://github.com/wazza-aus/cbus2ha)
 
-Click the button above to add this repository to your Home Assistant instance. If the button doesn't work, you can manually add the repository:
+Click the button above to add this repository. To add it yourself:
 
-1. In Home Assistant, go to **Settings** → **Add-ons** → **Add-on Store**
-2. Click the three dots (⋮) in the top right corner
-3. Select **Repositories**
-4. Add the following URL: `https://github.com/wazza-aus/cbus2ha`
-5. Click **Add**, then **Close**
-6. The "C-Bus to Home Assistant (cbus2ha)" addon should now appear in the addon store
-7. Click on it and select **Install**
+1. In Home Assistant, go to **Settings** → **Add-ons** → **Add-on Store**.
+2. Open the three-dot menu (⋮) and select **Repositories**.
+3. Add `https://github.com/wazza-aus/cbus2ha`.
+4. Install **CBus to Home Assistant**.
 
-### License
+Configuration fields are documented in the add-on documentation tab, which is generated from [`DOCS.md`](DOCS.md).
 
-This project is licensed under the GNU Lesser General Public License v3.0 or later (LGPL-3.0+).
-See [COPYING.LESSER](COPYING.LESSER) for details.
+## Hardware
 
-All modifications maintain the original LGPL-3.0+ license. Original copyright notices are preserved.
+The bridge speaks the PCI serial protocol directly. It does not use Clipsal `libcbm` or C-Gate.
 
-> **Note:** This software is not certified or endorsed by Clipsal or Schneider
-> Electric. Clipsal claim that use of C-Bus with non-Clipsal hardware or
-> software may void your warranty.
+It works with a 5500PC serial PCI, a 5500PCU USB PCI (`cp210x` on Linux), and a 5500CN or 5500CN2 Ethernet PCI that already has an IP address. This add-on cannot give a CNI its first address.
 
-More information about the project is available on
-[the libcbus ReadTheDocs site][rtd], and in the `docs` directory of the source
-repository.
+> This software is not certified or endorsed by Clipsal or Schneider Electric. Clipsal claim that use of C-Bus with non-Clipsal hardware or software may void your warranty.
 
-## About the cmqttd project: original notes from micolous.
+## Credits
 
-Talks to Clipsal CBus using Python 3.7+.
+Original `cmqttd` and libcbus work is by Michael Farrell, 2012–2020, licensed under the GNU Lesser General Public License v3.0 or later. See [COPYING.LESSER](COPYING.LESSER).
 
-This is a reimplementation of the PCI serial protocol _from scratch_. This is
-done using a combination [Clipsal's _Open C-Bus_ documentation][clipsal-docs]
-and reverse engineering (to fill in the gaps).
-
-Unlike some contemporary alternatives, it does **not** use the `libcbm`
-library/DLL from Clipsal, or C-Gate, which have serious problems:
-
-* The `libcbm` module is written in C, and does not support `x86_64` or
-  comparatively-modern ARM architectures (such as that used in the Raspberry
-  Pi).
-
-  `libcbm` was previously only available as a static library for `x86_32` Linux
-  and Windows systems. [Source is available][libcbm-src] under the Boost
-  license, but this was last updated in 2009.
-
-* C-Gate requires an OS and architecture specific closed source serial
-  library (SerialIO), the Java runtime, and itself has various licensing
-  restrictions.
-
-Because this is a pure-Python implementation, it should run on any Python
-supported platform. It has been primarily developed on Linux on `armhf`,
-`x86_32` and `x86_64` and macOS on `x86_64`.
-
-At a high level, this project includes `cmqttd`, a daemon to bridge a C-Bus PCI
-to an MQTT Broker. `cmqttd` supports Home Assistant's
-[MQTT Light model][ha-mqtt] and [MQTT topic auto-discovery][ha-auto].
-
-_Integration with Hass.io is still a work in progress._
-
-## Hardware interface support
-
-This should work with the following C-Bus PC Interfaces (PCIs):
-
-* [5500PC Serial PCI][5500PC]
-
-* [5500PCU USB PCI][5500PCU]
-
-  On Linux, this requires v2.6.25 or later kernel, with the `cp210x` module.
-
-* [5500CN Ethernet PCI][5500CN] (and likely _also_ [5500CN2][])
-
-  This software _does not_ support configuring the Ethernet PCI for the first
-  time. It must already have an IP address on your network.
-
-## Recent updates (2020-02-22)
-
-This project has recently completed a migration to Python 3.7.
-
-Most things should work, but I'm still going through updating all the documentation properly.
-
-There are many backward-incompatible changes:
-
-* This _only_ supports Python 3.7 and later.
-
-* Python 2.x support _has been entirely removed_, [as Python 2 has been sunset as of 2020][py2].
-
-  Python 3.6 and earlier support is not a goal. We want to use new language features!
-
-* D-Bus is no longer used by this project:
-
-  * `cmqttd` (C-Bus to MQTT bridge) replaces `cdbusd` (C-Bus to D-Bus bridge).
-
-  * `dbuspcid` (virtual PCI to D-Bus bridge) has been removed. It has no replacement.
-
-* `sage` (libcbus' web interface) and `staged` (scene management system) have been removed.
-  `cmqttd` supports [Home Assistant's MQTT Discovery schema][ha-auto].
-
-  This allows `libcbus` to reduce its scope significantly -- Home Assistant can interface with much
-  more hardware than C-Bus, and has a large community around it.
-
-* This no longer uses Twisted -- `asyncio` (in the standard library) is used instead.
-
-Many APIs have changed due to refactoring, and is subject to further change without notice. The
-most stable API is via MQTT (`cmqttd`).
+This fork adds the Home Assistant add-on, device types, command queue, MQTT discovery, and the reconnect and level-sync behaviour described above.
 
 [aarch64-shield]: https://img.shields.io/badge/aarch64-yes-green.svg
 [amd64-shield]: https://img.shields.io/badge/amd64-yes-green.svg
