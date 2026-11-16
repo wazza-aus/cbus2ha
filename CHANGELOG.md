@@ -1,8 +1,8 @@
 # Changelog
 
-## 1.1.2
+## 1.2.0
 
-- Blank MQTT settings now read the Mosquitto add-on account from the Supervisor reply. The previous version looked in the wrong place and stopped before connecting.
+- Blank MQTT settings now read the Mosquitto add-on account from the Supervisor reply. Version 1.1.1 looked in the wrong place and stopped before connecting.
 
 ## 1.1.1
 
