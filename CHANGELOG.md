@@ -7,6 +7,7 @@
 - The move onto one C-Bus device is remembered only after the old per-entity discovery messages are deleted. A restart does not write those old messages again. If they are still in the broker, the next start moves them and deletes them before it is remembered as finished.
 - The add-on is built for 64-bit Home Assistant only (`aarch64` and `amd64`). `armhf`, `armv7`, and `i386` are no longer available.
 - After this version is installed, do not go back to 1.1.0. That writes the old discovery messages again, and Home Assistant then has two copies of every light.
+- Version 1.2.0 is published on the `main` branch. The `master` branch stays at 1.1.0, so an install that follows `master` is unchanged. Making `main` the GitHub default branch, and retiring `master`, will be announced later.
 
 ## 1.1.1
 

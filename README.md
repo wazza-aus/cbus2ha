@@ -23,9 +23,11 @@ If the MQTT broker disappears, the add-on retries for five minutes. If the broke
 
 ## Versions
 
-Home Assistant installs this add-on from the `master` branch. The version it offers is the `version` field in [`config.yaml`](config.yaml) on that branch. There is no version picker.
+Home Assistant follows the branch already checked out in its copy of this repository. The version it offers is the `version` field in [`config.yaml`](config.yaml) on that branch. There is no version picker.
 
-`beta` is a development branch. Home Assistant will not offer it as an update.
+`main` carries 1.2.0. `master` stays at 1.1.0 for installs that already follow it. Making `main` the GitHub default branch, and retiring `master`, will be announced later.
+
+`beta` is a development branch. Home Assistant offers it only when that copy is checked out on `beta`.
 
 ## Installation
 
