@@ -7,6 +7,7 @@ This add-on bridges a Clipsal C-Bus PCI or CNI to Home Assistant over MQTT. It i
 
 Group addresses are dimmable lights unless you list them as something else:
 
+- **Dimmable lights** are the default. They report a brightness from 0 to 255.
 - **Non-dimmable lights** are on/off only.
 - **Switches** are on/off controls.
 - **Binary sensors** report state and do not accept commands.
