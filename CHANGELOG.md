@@ -5,6 +5,8 @@
 - Blank MQTT settings now read the Mosquitto add-on account from the Supervisor reply. Version 1.1.1 looked in the wrong place and stopped before connecting.
 - A later MQTT reconnect does not publish discovery again or re-read every C-Bus level. Doing that on each reconnect was reloading the door in Home Assistant, so HomeKit announced it unlocked and then locked. Levels are read again only if a C-Bus change was missed while MQTT was down.
 - The move onto one C-Bus device is remembered only after the old per-entity discovery messages are deleted. A restart does not write those old messages again. If they are still in the broker, the next start moves them and deletes them before it is remembered as finished.
+- The add-on is built for 64-bit Home Assistant only (`aarch64` and `amd64`). `armhf`, `armv7`, and `i386` are no longer available.
+- After this version is installed, do not go back to 1.1.0. That writes the old discovery messages again, and Home Assistant then has two copies of every light.
 
 ## 1.1.1
 
